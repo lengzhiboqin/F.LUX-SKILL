@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# F.LUX-SKILL 同步脚本（v2：分支管理 + 质量门禁）
+# F.LUX-SKILL 同步脚本（v3：自动发现技能 + 分支管理 + 质量门禁）
 #
 # 用法:
-#   bash sync_skills.sh              # 检测变化，推送到 dev/<技能名> 分支（验证区）
+#   bash sync_skills.sh              # 自动扫描所有技能，检测变化，推送到 dev/<技能名> 分支
 #   bash sync_skills.sh --dry-run    # 只检测，不修改
 #   bash sync_skills.sh --status     # 查看各技能验证状态
 #   bash sync_skills.sh --promote <技能名>  # 把 dev/<技能名> 合并到 main（需连续3天无报错）
@@ -11,6 +11,9 @@
 # 分支策略:
 #   main              = 稳定主线（连续3天无报错才合并进来）
 #   dev/<技能名>      = 验证区（新技能/有修改的技能先推到这里）
+#
+# v3变更: 取消白名单，自动扫描 .user_skills/ 下所有带 SKILL.md 的目录
+#         新技能自动加入同步并推送到dev分支，同时通知用户
 set -euo pipefail
 
 # 配置
@@ -24,13 +27,20 @@ ISSUE_SKILL=""
 ISSUE_TITLE=""
 ISSUE_BODY=""
 
-# 白名单：需要同步的技能
-SKILLS=("shangou-data-pipeline" "flux-daily-briefing")
-
 # 排除模式
 EXCLUDE_PATTERNS=(
   "data/" "__pycache__/" "*.pyc" "config.json" "*.log" "*.xlsx" "*.csv"
 )
+
+# 自动发现技能：扫描 .user_skills/ 下所有带 SKILL.md 的目录
+# 返回技能名称列表（每行一个）
+discover_skills() {
+  for dir in "$SKILLS_SRC"/*/; do
+    if [ -f "$dir/SKILL.md" ]; then
+      basename "$dir"
+    fi
+  done
+}
 
 # 解析参数
 while [[ $# -gt 0 ]]; do
@@ -91,7 +101,7 @@ cmd_status() {
   echo " 状态文件: $STATUS_FILE"
   echo "=========================================="
   echo ""
-  for skill in "${SKILLS[@]}"; do
+  for skill in $(discover_skills); do
     local branch=$(get_status "$skill" "current_branch")
     local days=$(get_status "$skill" "consecutive_success_days")
     local last_date=$(get_status "$skill" "last_run_date")
@@ -119,13 +129,9 @@ cmd_promote() {
     exit 1
   fi
 
-  # 检查是否在白名单
-  local found=false
-  for s in "${SKILLS[@]}"; do
-    [ "$s" = "$skill" ] && found=true
-  done
-  if [ "$found" = false ]; then
-    echo "❌ 技能 $skill 不在白名单中"
+  # 检查是否是有效技能目录（.user_skills/ 下有对应 SKILL.md）
+  if [ ! -f "$SKILLS_SRC/$skill/SKILL.md" ]; then
+    echo "❌ 技能 $skill 不存在（未在 $SKILLS_SRC/ 下找到 SKILL.md）"
     exit 1
   fi
 
@@ -206,7 +212,7 @@ cmd_issue() {
 cmd_sync() {
   init_status
   echo "=========================================="
-  echo " F.LUX-SKILL 同步脚本（v2 分支管理）"
+  echo " F.LUX-SKILL 同步脚本（v3 自动发现+分支管理）"
   echo " 源目录: $SKILLS_SRC"
   echo " 仓库目录: $REPO_DIR"
   echo " 模式: $([ "$DRY_RUN" = true ] && echo "干跑" || echo "执行")"
@@ -214,8 +220,9 @@ cmd_sync() {
   echo ""
 
   local any_changed=false
+  local new_skills_found=()
 
-  for skill in "${SKILLS[@]}"; do
+  for skill in $(discover_skills); do
     local SRC="$SKILLS_SRC/$skill"
     local DST="$REPO_DIR/$skill"
     local branch="dev/$skill"
@@ -225,7 +232,14 @@ cmd_sync() {
       continue
     fi
 
-    echo "📦 检查技能: $skill → 分支 $branch"
+    # 检测是否是新技能（仓库里还没有这个目录）
+    local is_new=false
+    if [ ! -d "$DST" ]; then
+      is_new=true
+      new_skills_found+=("$skill")
+    fi
+
+    echo "📦 检查技能: $skill → 分支 $branch $([ "$is_new" = true ] && echo "🆕 新技能")"
 
     mkdir -p "$DST"
 
@@ -234,8 +248,10 @@ cmd_sync() {
     for pat in "${EXCLUDE_PATTERNS[@]}"; do
       RSYNC_ARGS+=(--exclude="$pat")
     done
+    # 始终加 --itemize-changes，这样同步后能检测到变化（修复：真正运行时也能检测新文件）
+    RSYNC_ARGS+=(--itemize-changes)
     if [ "$DRY_RUN" = true ]; then
-      RSYNC_ARGS+=(--dry-run --itemize-changes)
+      RSYNC_ARGS+=(--dry-run)
     fi
 
     local OUTPUT
@@ -286,20 +302,14 @@ cmd_sync() {
     echo ""
   done
 
-  # 检测新技能
-  echo "🔍 检测新技能目录..."
-  for dir in "$SKILLS_SRC"/*/; do
-    local name=$(basename "$dir")
-    local skip=false
-    for s in "${SKILLS[@]}"; do
-      [ "$name" = "$s" ] && skip=true
+  # 新技能汇总通知
+  if [ ${#new_skills_found[@]} -gt 0 ]; then
+    echo "🆕 发现新技能（已自动加入同步）："
+    for ns in "${new_skills_found[@]}"; do
+      echo "   - $ns"
     done
-    if [ "$skip" = false ] && [ -f "$dir/SKILL.md" ]; then
-      echo "   ⚠️  发现新技能: $name（未在同步白名单中）"
-      echo "      如需同步，请编辑本脚本的 SKILLS 数组添加 '$name'"
-    fi
-  done
-  echo ""
+    echo ""
+  fi
 
   if [ "$any_changed" = false ]; then
     echo "✅ 所有技能已是最新，无需同步"
