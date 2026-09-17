@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# 数据文件（业务数据不入库）
+data/
+*.xlsx
+*.csv
+*.json
+!package.json
+!requirements.json
+
+# 配置文件（含本地路径/凭证，不入库）
+config.json
+config.local.json
+
+# 日志
+*.log
+logs/
+
+# 临时文件
+/tmp/
+*.tmp
+*.bak
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
