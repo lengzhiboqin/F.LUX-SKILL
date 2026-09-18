@@ -10,6 +10,7 @@
   1 = 部分表下载失败 或 追加总表有警告
   2 = 未登录/浏览器不可用/配置缺失
   3 = 环境错误（缺依赖/配置不是向导生成的）
+  4 = 美团反爬/人机识别拦截，已清空cookie，需重新登录
 """
 import json
 import os
@@ -20,6 +21,7 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 CONFIG_FILE = Path.home() / ".config" / "shangou-pipeline" / "config.json"
+COOKIE_VALIDITY_DAYS = 10  # cookie有效期7-15天，取中间值10天提醒
 
 
 def info(s): print(f"\033[94m[pipeline]\033[0m {s}", flush=True)
@@ -31,6 +33,25 @@ def err(s): print(f"\033[91m[pipeline]\033[0m {s}", file=sys.stderr, flush=True)
 def run(cmd, **kw):
     """运行子进程，实时输出。"""
     return subprocess.run(cmd, **kw)
+
+
+def check_cookie_expiry_local():
+    """检查cookie是否即将过期（超过COOKIE_VALIDITY_DAYS天）。
+    读取配置文件中的last_login_time，如果超过有效期则打印提醒。"""
+    try:
+        if CONFIG_FILE.exists():
+            with open(CONFIG_FILE, encoding="utf-8") as f:
+                cfg = json.load(f)
+            last_login = cfg.get("last_login_time", "")
+            if last_login:
+                last_dt = datetime.strptime(last_login, "%Y-%m-%d %H:%M:%S")
+                days_since = (datetime.now() - last_dt).days
+                if days_since >= COOKIE_VALIDITY_DAYS:
+                    warn(f"⚠️ cookie已使用{days_since}天，接近有效期（{COOKIE_VALIDITY_DAYS}天），建议重新登录")
+                    return True
+    except Exception:
+        pass
+    return False
 
 
 def main():
@@ -83,9 +104,14 @@ def main():
     # 3. 登录态探测
     print()
     info("=== 步骤1：探测浏览器登录态 ===")
+    # 检查cookie是否即将过期
+    check_cookie_expiry_local()
     probe = run([py, str(SCRIPT_DIR / "shangou_report_download.py"), "probe"],
                 capture_output=True, text=True, timeout=60)
     print(probe.stdout)
+    if '"anti_bot": true' in probe.stdout or probe.returncode == 4:
+        err("美团反爬/人机识别拦截，已清空cookie并打开登录页，请人工重新登录后重跑")
+        sys.exit(4)
     if probe.returncode != 0 or '"logged_in": false' in probe.stdout:
         err("浏览器不可用或未登录，需人工登录后重跑")
         sys.exit(2)
@@ -97,6 +123,9 @@ def main():
     collect = run([py, str(SCRIPT_DIR / "shangou_report_download.py"), "all", "--daily",
                    "--out", str(raw_dir), "--timeout", timeout])
     collect_rc = collect.returncode
+    if collect_rc == 4:
+        err("采集过程中触发美团反爬拦截，已清空cookie并打开登录页，请人工重新登录后重跑")
+        sys.exit(4)
     if collect_rc != 0:
         warn(f"部分报表下载失败（退出码 {collect_rc}），继续整合已成功的表")
 
