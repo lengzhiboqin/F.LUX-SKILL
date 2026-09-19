@@ -241,6 +241,19 @@ cmd_sync() {
 
     echo "📦 检查技能: $skill → 分支 $branch $([ "$is_new" = true ] && echo "🆕 新技能")"
 
+    # 【漏洞修复1】检测：技能已在main，但dev分支有新提交（比main新）
+    # 这种情况通常是手动commit或其他方式导致dev有新代码，需要重置验证状态
+    local current_branch=$(get_status "$skill" "current_branch")
+    if [ "$current_branch" = "main" ] && git rev-parse --verify "$branch" >/dev/null 2>&1; then
+      local dev_ahead=$(git rev-list --count "main..$branch" 2>/dev/null || echo "0")
+      if [ "$dev_ahead" -gt 0 ] 2>/dev/null; then
+        echo "   ⚠️  检测到dev分支比main新$dev_ahead个提交，重置验证状态（需要重新验证3天）"
+        set_status "$skill" "current_branch" "$branch"
+        set_status "$skill" "consecutive_success_days" "0"
+        set_status "$skill" "promoted_to_main" ""
+      fi
+    fi
+
     mkdir -p "$DST"
 
     # rsync同步
@@ -282,19 +295,25 @@ cmd_sync() {
         git add -A
         if ! git diff --cached --quiet; then
           git commit -m "sync: 更新 $skill ($(date '+%Y-%m-%d %H:%M'))"
-          git push -u origin "$branch" 2>&1
-          echo "   ✅ 已推送到 $branch"
+          local push_output
+          push_output=$(git push -u origin "$branch" 2>&1)
+          local push_rc=$?
+          echo "$push_output"
+          if [ $push_rc -eq 0 ]; then
+            echo "   ✅ 已推送到 $branch"
+            # 切回main（保持工作区干净）
+            git checkout main 2>/dev/null || true
+            # 【漏洞修复2】只有push成功才重置状态（推送失败不重置，避免状态混乱）
+            set_status "$skill" "current_branch" "$branch"
+            set_status "$skill" "consecutive_success_days" "0"
+            set_status "$skill" "promoted_to_main" ""
+          else
+            echo "   ❌ 推送失败，状态未重置（请手动处理冲突后重试）"
+            git checkout main 2>/dev/null || true
+          fi
         else
           echo "   无实际文件变化"
         fi
-
-        # 切回main（保持工作区干净）
-        git checkout main 2>/dev/null || true
-
-        # 更新状态：技能有变化，重置连续无报错天数（需要重新验证）
-        set_status "$skill" "current_branch" "$branch"
-        set_status "$skill" "consecutive_success_days" "0"
-        set_status "$skill" "promoted_to_main" ""
       fi
     else
       echo "   ✅ 无变化"
