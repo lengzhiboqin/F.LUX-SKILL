@@ -10,16 +10,18 @@
   1 = 部分表下载失败 或 追加总表有警告
   2 = 未登录/浏览器不可用/配置缺失
   3 = 环境错误（缺依赖/配置不是向导生成的）
+  4 = 美团反爬/人机识别拦截，已清空cookie，需重新登录
 """
 import json
 import os
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 CONFIG_FILE = Path.home() / ".config" / "shangou-pipeline" / "config.json"
+COOKIE_VALIDITY_DAYS = 10  # cookie有效期7-15天，取中间值10天提醒
 
 
 def info(s): print(f"\033[94m[pipeline]\033[0m {s}", flush=True)
@@ -31,6 +33,25 @@ def err(s): print(f"\033[91m[pipeline]\033[0m {s}", file=sys.stderr, flush=True)
 def run(cmd, **kw):
     """运行子进程，实时输出。"""
     return subprocess.run(cmd, **kw)
+
+
+def check_cookie_expiry_local():
+    """检查cookie是否即将过期（超过COOKIE_VALIDITY_DAYS天）。
+    读取配置文件中的last_login_time，如果超过有效期则打印提醒。"""
+    try:
+        if CONFIG_FILE.exists():
+            with open(CONFIG_FILE, encoding="utf-8") as f:
+                cfg = json.load(f)
+            last_login = cfg.get("last_login_time", "")
+            if last_login:
+                last_dt = datetime.strptime(last_login, "%Y-%m-%d %H:%M:%S")
+                days_since = (datetime.now() - last_dt).days
+                if days_since >= COOKIE_VALIDITY_DAYS:
+                    warn(f"⚠️ cookie已使用{days_since}天，接近有效期（{COOKIE_VALIDITY_DAYS}天），建议重新登录")
+                    return True
+    except Exception:
+        pass
+    return False
 
 
 def main():
@@ -83,9 +104,14 @@ def main():
     # 3. 登录态探测
     print()
     info("=== 步骤1：探测浏览器登录态 ===")
+    # 检查cookie是否即将过期
+    check_cookie_expiry_local()
     probe = run([py, str(SCRIPT_DIR / "shangou_report_download.py"), "probe"],
                 capture_output=True, text=True, timeout=60)
     print(probe.stdout)
+    if '"anti_bot": true' in probe.stdout or probe.returncode == 4:
+        err("美团反爬/人机识别拦截，已清空cookie并打开登录页，请人工重新登录后重跑")
+        sys.exit(4)
     if probe.returncode != 0 or '"logged_in": false' in probe.stdout:
         err("浏览器不可用或未登录，需人工登录后重跑")
         sys.exit(2)
@@ -97,6 +123,9 @@ def main():
     collect = run([py, str(SCRIPT_DIR / "shangou_report_download.py"), "all", "--daily",
                    "--out", str(raw_dir), "--timeout", timeout])
     collect_rc = collect.returncode
+    if collect_rc == 4:
+        err("采集过程中触发美团反爬拦截，已清空cookie并打开登录页，请人工重新登录后重跑")
+        sys.exit(4)
     if collect_rc != 0:
         warn(f"部分报表下载失败（退出码 {collect_rc}），继续整合已成功的表")
 
@@ -112,6 +141,11 @@ def main():
             latest_date = json.loads(chk.stdout).get("date", "")
     except Exception:
         pass
+    # 兜底：如果check_files没返回日期，使用昨日日期（每日采集任务采集的是昨日数据）
+    if not latest_date:
+        yesterday = datetime.now() - timedelta(days=1)
+        latest_date = yesterday.strftime("%Y-%m-%d")
+        info(f"check_files未返回日期，使用默认昨日日期: {latest_date}")
 
     # 6. 追加到总表
     print()
@@ -158,12 +192,17 @@ def main():
         if rnm:
             print(f"raw有但未入总表: {rnm}")
 
-    # 8. 清理原始数据
+    # 8. 清理原始数据（清理前确认追加成功）
     if cleanup_raw:
         print()
         info("=== 步骤6：清理临时原始数据 ===")
-        run([py, str(SCRIPT_DIR / "cleanup_raw.py"), "--raw", str(raw_dir),
-             "--master", str(master_dir), "--keep-days", "0"])
+        # 清理前检查：如果追加失败，不清理原始数据
+        if append_rc != 0:
+            err(f"追加过程有错误（退出码 {append_rc}），为防止数据丢失，跳过清理原始数据")
+            err("请检查追加日志，修复后手动清理: " + str(raw_dir))
+        else:
+            run([py, str(SCRIPT_DIR / "cleanup_raw.py"), "--raw", str(raw_dir),
+                 "--master", str(master_dir), "--keep-days", "0"])
 
     # 9. 导出Excel
     if export_excel:
@@ -204,6 +243,23 @@ def main():
                                     "collect_dates": dates}
     summary_file.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"摘要已写入: {summary_file}")
+
+    # 11.5 写统一格式的last_run.json（供validator检测运行状态）
+    try:
+        last_run_file = SCRIPT_DIR.parent / "data" / "last_run.json"
+        last_run_file.parent.mkdir(parents=True, exist_ok=True)
+        last_run = {
+            "ok": collect_rc == 0 and append_rc == 0,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "data_date": latest_date,
+            "exit_code": 0 if (collect_rc == 0 and append_rc == 0) else 1,
+            "error": None if (collect_rc == 0 and append_rc == 0) else f"collect_rc={collect_rc}, append_rc={append_rc}",
+            "outputs": [str(excel_path)] if export_excel and excel_path.exists() else [],
+        }
+        last_run_file.write_text(json.dumps(last_run, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"统一状态已写入: {last_run_file}")
+    except Exception as e:
+        print(f"⚠️ 写last_run.json失败: {e}")
 
     # 12. 总结
     print()

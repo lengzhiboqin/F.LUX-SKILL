@@ -230,13 +230,40 @@ def main():
                 w.writerow(full_header)
                 w.writerows(merged)
 
+            # ===== 写入验证（防止假成功） =====
+            verify_ok = True
+            verify_note = ""
+            try:
+                verify_rows = read_csv_auto(mpath)
+                verify_count = len(verify_rows) - 1  # 减去表头
+                if verify_count != len(merged):
+                    verify_ok = False
+                    verify_note = f"写入验证失败: 预期{len(merged)}行，实际{verify_count}行"
+                else:
+                    # 验证采集日期是否存在
+                    if verify_rows:
+                        verify_header = verify_rows[0]
+                        if TAG in verify_header:
+                            ti_v = verify_header.index(TAG)
+                            dates_found = set(r[ti_v] for r in verify_rows[1:] if ti_v < len(r))
+                            if tag not in dates_found:
+                                verify_ok = False
+                                verify_note = f"写入验证失败: 采集日期{tag}未在总表中找到"
+            except Exception as e:
+                verify_ok = False
+                verify_note = f"写入验证异常: {str(e)[:80]}"
+
             log["merged"][tab] = {
                 "src": os.path.basename(f),
                 "collect_date": tag,
                 "added": len(body),
                 "new_total": len(merged),
+                "verify_ok": verify_ok,
+                "verify_note": verify_note,
                 "header_warning": header_warning,
             }
+            if not verify_ok:
+                log.setdefault("verify_failed", []).append({"table": tab, "date": tag, "note": verify_note})
             if header_warning:
                 log.setdefault("header_merged", []).append({"table": tab, "date": tag, "warning": header_warning})
 
@@ -247,21 +274,27 @@ def main():
         print("===== 追加结果 =====")
         for tab, info in log["merged"].items():
             warn = f" [表头合并]" if info.get("header_warning") else ""
-            print(f"  ✓ {tab}: +{info['added']}行 → 总计{info['new_total']}行 ({info['collect_date']}){warn}")
+            verify = "" if info.get("verify_ok", True) else f" ⚠️ {info.get('verify_note', '验证失败')}"
+            print(f"  ✓ {tab}: +{info['added']}行 → 总计{info['new_total']}行 ({info['collect_date']}){warn}{verify}")
         if log["migrated"]:
             print(f"  ⚠ 旧格式迁移: {', '.join(log['migrated'])}")
         if log.get("header_merged"):
             print(f"  ⚠ 表头自动合并: {len(log['header_merged'])} 张表（缺失字段留空）")
+        if log.get("verify_failed"):
+            print(f"  ✗ 写入验证失败: {len(log['verify_failed'])} 张表")
+            for vf in log["verify_failed"]:
+                print(f"    - {vf['table']}({vf['date']}): {vf['note']}")
         if log["rejected"]:
             print(f"  ✗ 拒收: {len(log['rejected'])} 个文件")
             for r in log["rejected"]:
                 print(f"    - {r['table']}({r['date']}): {r['reason'][:80]}")
         if log["skipped"]:
             print(f"  ○ 跳过(非8表): {len(log['skipped'])} 个文件")
-        print(f"\n成功 {len(log['merged'])} 表，拒收 {len(log['rejected'])}，迁移 {len(log['migrated'])}，表头合并 {len(log.get('header_merged', []))}")
+        print(f"\n成功 {len(log['merged'])} 表，验证失败 {len(log.get('verify_failed', []))}，拒收 {len(log['rejected'])}，迁移 {len(log['migrated'])}，表头合并 {len(log.get('header_merged', []))}")
 
-    # 有拒收则退出码1
-    sys.exit(1 if log["rejected"] else 0)
+    # 有拒收或验证失败则退出码1
+    has_error = log["rejected"] or log.get("verify_failed")
+    sys.exit(1 if has_error else 0)
 
 
 if __name__ == "__main__":
