@@ -63,8 +63,15 @@ class QianniuCDP:
 
     def goto(self, hash_route, settle=3.0):
         """导航到hash路由"""
-        self.js(f'location.hash = {json.dumps(hash_route)}', await_promise=False)
-        time.sleep(settle)
+        # 如果当前页面不是牵牛花网站，先导航到完整URL
+        current_url = self.js("window.location.href", await_promise=False) or ""
+        if "qnh.meituan.com" not in current_url:
+            full_url = f"https://qnh.meituan.com/home.html{hash_route}"
+            self.cmd("Page.navigate", {"url": full_url})
+            time.sleep(settle + 2)
+        else:
+            self.js(f'location.hash = {json.dumps(hash_route)}', await_promise=False)
+            time.sleep(settle)
 
     def click_xy(self, x, y, press_delay=0.12):
         """模拟真实鼠标点击"""
