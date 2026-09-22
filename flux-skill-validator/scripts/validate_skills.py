@@ -319,12 +319,12 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="干跑模式")
     args = parser.parse_args()
 
-    # 计算日期
+    # 计算日期：默认检测当天（T），因为采集/简报都是当天执行的
     if args.date:
         date_str = args.date.replace("-", "")
     else:
-        yesterday = datetime.now() - timedelta(days=1)
-        date_str = yesterday.strftime("%Y%m%d")
+        today = datetime.now()
+        date_str = today.strftime("%Y%m%d")
     date_display = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
 
     # 自动检测仓库路径
