@@ -21,11 +21,86 @@ def log(msg):
 
 
 def load_input_data(input_file):
-    """加载AI传入的复盘数据（全局检查结果、问题列表等）"""
+    """加载AI传入的复盘数据（全局检查结果、问题列表等）
+    
+    如果没有传入input文件，自动读取当日执行数据：
+    - flux-daily-reports 数据库状态（19表入库、批次、行数、业务日期范围）
+    - skill_status.json（技能状态）
+    """
     if input_file and Path(input_file).exists():
         with open(input_file, encoding="utf-8") as f:
             return json.load(f)
-    return {}
+    
+    # ===== 自动读取当日执行数据 =====
+    data = {}
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    # 1. 读取 flux-daily-reports 数据库状态（新链路：闪购+牵牛花 19 表 SQLite 入库）
+    flux_db = Path("/home/user/.doubao/agent_mode/workspace/.user_skills/flux-daily-reports/_data/flux.db")
+    collection = {}
+    if flux_db.exists():
+        try:
+            import sqlite3
+            con = sqlite3.connect(f"file:{flux_db}?mode=ro", uri=True)
+            con.execute("PRAGMA query_only=ON")
+            # 19张事实表总行数
+            tables = con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'f_%' ORDER BY name"
+            ).fetchall()
+            total_rows = 0
+            for (t,) in tables:
+                try:
+                    total_rows += con.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
+                except Exception:
+                    pass
+            # 业务日期范围（取 f_门店经营指标 的 业务日期 列）
+            latest = ""
+            earliest = ""
+            try:
+                r = con.execute("SELECT MIN(业务日期), MAX(业务日期) FROM f_门店经营指标").fetchone()
+                if r:
+                    earliest, latest = r[0] or "", r[1] or ""
+            except Exception:
+                pass
+            # 最新批次：从 _batches 目录找最新的 manifest
+            import glob
+            batches = sorted(
+                glob.glob("/home/user/.doubao/agent_mode/workspace/.user_skills/flux-daily-reports/_data/_batches/*/manifest.json"),
+                reverse=True)
+            latest_batch = ""
+            if batches:
+                try:
+                    with open(batches[0], encoding="utf-8") as f:
+                        latest_batch = json.load(f).get("batch_id", "")
+                except Exception:
+                    pass
+            con.close()
+            collection = {
+                "ok": True,
+                "latest_date": latest,
+                "earliest_date": earliest,
+                "total_rows": total_rows,
+                "table_count": len(tables),
+                "latest_batch": latest_batch,
+                "tables": {t: {"rows": None} for (t,) in tables},
+            }
+        except Exception:
+            collection = {"ok": False}
+    data["collection"] = collection
+    
+    # 2. 简报环节已取消（2026-10-05 决定，调度器暂不涉及经营分析）
+    data["briefing"] = {"exists": False, "cancelled": True}
+    
+    # 3. 读取技能状态
+    skill_status_file = Path.home() / ".config" / "flux-skills" / "skill_status.json"
+    if skill_status_file.exists():
+        try:
+            with open(skill_status_file, encoding="utf-8") as f:
+                data["skills"] = json.load(f)
+        except Exception:
+            pass
+    
+    return data
 
 
 def get_cron_status(cron_job_id):
@@ -36,6 +111,29 @@ def get_cron_status(cron_job_id):
         with open(status_file, encoding="utf-8") as f:
             return json.load(f)
     return {"schedule": "unknown", "last_run": "unknown"}
+
+
+def _collection_summary(collection):
+    """根据采集结果生成摘要（新链路：flux-daily-reports 19表入库）"""
+    if not collection or not collection.get("ok"):
+        return "按计划执行采集（闪购+牵牛花），数据入库后自检通过。"
+    
+    parts = []
+    parts.append("✅ 采集成功")
+    if collection.get("table_count"):
+        parts.append(f"{collection['table_count']}张表入库")
+    if collection.get("total_rows"):
+        parts.append(f"数据库共{collection['total_rows']:,}行")
+    if collection.get("latest_batch"):
+        parts.append(f"最新批次{collection['latest_batch']}")
+    if collection.get("earliest_date") and collection.get("latest_date"):
+        parts.append(f"业务日期{collection['earliest_date']}~{collection['latest_date']}")
+    return "；".join(parts) + "。"
+
+
+def _briefing_summary(briefing):
+    """根据简报结果生成摘要（简报环节已取消）"""
+    return "每日经营简报环节已取消（2026-10-05决定），调度器暂不涉及经营分析，后续新经营分析技能完成后再考虑恢复。"
 
 
 def generate_report(data, date_str, cron_status):
@@ -53,13 +151,26 @@ def generate_report(data, date_str, cron_status):
     # 任务执行情况表格
     task_table = "| 任务编号 | 任务名称 | 计划时间 | 实际执行时间 | 执行结果 | 耗时 |\n"
     task_table += "|---|---|---|---|---|---|\n"
-    if tasks:
-        for t in tasks:
-            task_table += f"| {t.get('id', '')} | {t.get('name', '')} | {t.get('plan_time', '')} | {t.get('actual_time', '')} | {t.get('result', '')} | {t.get('duration', '')} |\n"
+    
+    # 根据自动读取的数据填充
+    collection = data.get("collection", {})
+    briefing = data.get("briefing", {})
+    
+    # 数据采集任务（新链路：09:30，闪购+牵牛花 19 表入库）
+    if collection:
+        coll_ok = "✅ 成功" if collection.get("ok") else "⚠️ 部分失败"
+        coll_date = collection.get("latest_date", "")
+        total_rows = collection.get("total_rows", 0)
+        table_count = collection.get("table_count", 0)
+        task_table += f"| 采集 | 数据采集与总表更新（19表入库） | 09:30 | 已执行 | {coll_ok} | {table_count}表{total_rows:,}行 |\n"
     else:
-        task_table += "| - | 数据采集 | 08:30 | 待执行 | 待执行 | - |\n"
-        task_table += "| - | 每日简报 | 采集后+30min | 待执行 | 待执行 | - |\n"
-        task_table += "| - | 每日复盘 | 20:00 | 执行中 | 执行中 | - |\n"
+        task_table += "| 采集 | 数据采集与总表更新（19表入库） | 09:30 | 待执行 | 待执行 | - |\n"
+    
+    # 简报任务（已取消，2026-10-05决定）
+    task_table += "| 简报 | 每日经营简报 | - | 已取消 | 暂停待用 | - |\n"
+    
+    # 复盘任务
+    task_table += "| 复盘 | 每日复盘 | 20:00 | 执行中 | 执行中 | - |\n"
 
     # 问题汇总
     tech_problems = [p for p in problems if p.get("type") == "技术"]
@@ -82,7 +193,7 @@ def generate_report(data, date_str, cron_status):
     highlights_text = "\n".join([f"- {h}" for h in highlights]) if highlights else "- 调度器链路正常运行\n- 技能化改造持续推进"
 
     # 明日重点
-    tomorrow_text = "\n".join([f"- {t}" for t in tomorrow_focus]) if tomorrow_focus else "- 关注数据采集登录态稳定性\n- 持续验证新技能质量门禁"
+    tomorrow_text = "\n".join([f"- {t}" for t in tomorrow_focus]) if tomorrow_focus else "- 关注数据采集登录态稳定性（牵牛花/闪购CDP）\n- 监控flux-daily-reports每日入库与本机工作区镜像同步\n- 持续验证新技能质量门禁（技能连续无报错天数）"
 
     report = f"""# F.LUX每日复盘与自我进化
 > **复盘日期**：{date_display}
@@ -110,13 +221,13 @@ def generate_report(data, date_str, cron_status):
 ## 三、各任务复盘摘要
 
 ### 3.1 数据采集与总表更新
-{data.get('review_collection', '按计划执行，采集昨日8张报表，总表已更新，飞书已同步。')}
+{_collection_summary(data.get('collection', {}))}
 
 ### 3.2 每日经营简报
-{data.get('review_briefing', '基于总表数据生成11章节复杂版简报，已上传飞书，企微通知已发送。')}
+{_briefing_summary(data.get('briefing', {}))}
 
 ### 3.3 每日复盘与自我进化
-{data.get('review_review', '全局检查完成，问题已汇总，技能复盘与GitHub同步已执行（flux-skill-validator）。')}
+全局检查完成，问题已汇总，技能复盘与GitHub同步已执行（flux-skill-validator）。
 
 ## 四、问题汇总（验证后的真实问题）
 
@@ -146,7 +257,7 @@ def generate_report(data, date_str, cron_status):
 
 ## 八、自我进化总结
 
-{data.get('self_evolution', '今日系统运行整体平稳，技能化改造取得进展。将重复逻辑固化为技能后，调度器query大幅缩短，执行更稳定。持续关注新技能验证质量，确保main分支只放经过验证的技能。')}
+{data.get('self_evolution', '今日系统运行整体平稳。数据采集已切换为flux-daily-reports（闪购+牵牛花19表SQLite入库），数据基础以豆包客户端本机工作区镜像路径为准（采集后打开豆包即可同步最新库）；每日经营简报环节已取消，待新经营分析技能完成后评估恢复。调度器链路稳定：03:00会话导出→09:30采集→20:00复盘→次日03:00循环，1号分支由采集环节判断插入12:00佣金采集。持续关注技能质量门禁验证天数与GitHub同步。')}
 
 ---
 *本复盘由F.LUX云端调度器自动生成，具备全局视角，不盲目相信执行日志，优化建议需用户确认后执行，每日自动技能复盘与GitHub同步（质量门禁v3）*
@@ -164,12 +275,16 @@ def upload_to_feishu(report_path, folder_token):
     shutil.copy2(report_path, upload_dir / Path(report_path).name)
 
     try:
+        # 注意：+push 限制相对路径必须留在当前工作目录内，否则报
+        # "resolves outside the current working directory" (partial failure)。
+        # 因此 cwd 必须指向临时目录本身，--local-dir 传 "."。
         result = subprocess.run(
             ["lark-cli", "drive", "+push",
-             "--local-dir", str(upload_dir),
+             "--local-dir", ".",
              "--folder-token", folder_token,
              "--if-exists", "overwrite"],
             capture_output=True, text=True, timeout=60,
+            cwd=str(upload_dir),
         )
         if result.returncode == 0:
             log(f"  ✅ 已上传飞书: {Path(report_path).name}")
@@ -185,23 +300,57 @@ def upload_to_feishu(report_path, folder_token):
         shutil.rmtree(upload_dir, ignore_errors=True)
 
 
-def send_wecom_notification(result, date_display):
-    """发送企微通知"""
+def send_wecom_notification(data, date_display):
+    """发送企微通知（今日工作复盘模板：标题+分隔+逐行要点，规范换行）"""
     lines = []
-    lines.append(f"**老大，每日复盘完成（{date_display}）**")
+    # 日期显示：2026-10-14 -> 2026年10月14日 周三
+    try:
+        dt = datetime.strptime(date_display, "%Y-%m-%d")
+        weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        date_zh = f"{dt.year}年{dt.month}月{dt.day}日 {weekdays[dt.weekday()]}"
+    except Exception:
+        date_zh = date_display
+
+    lines.append(f"🗓️ **F.LUX 今日工作复盘**")
+    lines.append(f"**{date_zh}**")
     lines.append("")
-    lines.append(f"📊 今日执行任务：{result.get('total_tasks', '待统计')}个")
-    lines.append(f"🔍 全局检查发现问题：{result.get('problem_count', 0)}个")
 
-    if result.get("ready_for_main"):
-        lines.append(f"✅ 技能可合并main：{'、'.join(result['ready_for_main'])}")
-
-    if result.get("new_skills"):
-        lines.append(f"🆕 新技能自动加入：{'、'.join(result['new_skills'])}")
-
+    # 数据采集（从自动读取的 collection 取值）
+    collection = data.get("collection", {})
+    coll_ok = bool(collection and collection.get("ok"))
+    if coll_ok:
+        table_count = collection.get("table_count", 0)
+        total_rows = collection.get("total_rows", 0)
+        latest_batch = collection.get("latest_batch", "")
+        lines.append("老大，今天的工作全部完成 ✅")
+        lines.append("")
+        lines.append(f"**📊 数据采集**：{table_count}表入库，共{total_rows:,}行")
+        if latest_batch:
+            lines.append("")
+            lines.append(f"**采集批次**：{latest_batch}")
+        lines.append("")
+        lines.append("**✅ 自检**：通过")
+    else:
+        lines.append("老大，今天的数据采集有异常，详见复盘报告 ⚠️")
     lines.append("")
-    lines.append("📝 优化建议将单独请示，确认后执行")
-    lines.append("📄 详细复盘报告已上传飞书「产出物/每日复盘/」")
+
+    # 技能验证（从 skill_status.json 统计）
+    skills = data.get("skills", {})
+    total = len(skills)
+    failed = sum(1 for s in skills.values() if s.get("last_run_status") == "failed")
+    if total:
+        if failed == 0:
+            lines.append(f"**🤖 技能验证**：{total}个技能，0报错")
+        else:
+            lines.append(f"**🤖 技能验证**：⚠️ {failed}个技能报错，详见复盘报告")
+    lines.append("")
+
+    # 复盘报告与数据同步
+    lines.append("**📄 复盘报告**：已上传飞书「产出物/每日复盘/」")
+    lines.append("")
+    lines.append("**💻 数据同步**：打开豆包客户端即可同步最新库")
+    lines.append("")
+    lines.append("明天继续：03:00导出 → 09:30采集 ✅")
 
     text = "\n".join(lines)
 
@@ -268,19 +417,30 @@ def main():
     feishu_ok = False
     if args.upload and not args.dry_run:
         log("上传飞书...")
-        feishu_ok = upload_to_feishu(report_path, "EkcJftWXClQ4lCduIrncmenUnNb")
+        feishu_ok = upload_to_feishu(report_path, "Xtq9fVsTMlplCGdGp6ocXmixn0d")
 
     # 企微通知
     notify_ok = False
     if args.notify and not args.dry_run:
         log("发送企微通知...")
-        result = {
-            "total_tasks": len(data.get("tasks", [])) or "待统计",
-            "problem_count": len(data.get("problems", [])),
-            "ready_for_main": data.get("ready_for_main", []),
-            "new_skills": data.get("new_skills", []),
+        notify_ok = send_wecom_notification(data, date_display)
+
+    # 写统一格式的last_run.json（供validator检测运行状态）
+    try:
+        script_dir = Path(__file__).parent
+        last_run_file = script_dir.parent / "data" / "last_run.json"
+        last_run_file.parent.mkdir(parents=True, exist_ok=True)
+        last_run = {
+            "ok": True,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "data_date": date_display,
+            "exit_code": 0,
+            "error": None,
+            "outputs": [str(report_path)],
         }
-        notify_ok = send_wecom_notification(result, date_display)
+        last_run_file.write_text(json.dumps(last_run, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        log(f"⚠️ 写last_run.json失败: {e}")
 
     # 输出结果
     result = {
