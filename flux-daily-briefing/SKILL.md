@@ -54,7 +54,7 @@ python3 <技能目录>/scripts/generate_briefing.py \
 
 1. 从飞书品牌数据根目录下载 `F.LUX品牌数据汇总表.xlsx`（folder_token: `HSeMfORtJlhkt9dv86bcc3MCnue`）
 2. 运行 `generate_briefing.py`（默认生成复杂版）
-3. 上传到飞书 `产出物/每日经营简报/`（folder_token: `QlF9fTngGlCzVzdrstUcNyxXnTd`），**每个文件用单独临时目录上传**
+3. 上传到飞书「F.LUX云端工作台/产出物/每日经营简报/」（folder_token: `TMkHfmmO9lqKyIdlssvc5kF7nCf`），**每个文件用单独临时目录上传**
 4. 企业微信通知用户（称谓"老大"），一段话包含：营业额/环比/有效订单/客单价/活跃门店/TOP3/异常提醒
 
 ## 企业微信通知
