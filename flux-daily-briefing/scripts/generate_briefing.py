@@ -485,8 +485,27 @@ def main():
     os.makedirs(args.out, exist_ok=True)
 
     fname = f"F.LUX每日经营简报_{d['date']}_v2_full.md"
-    with open(os.path.join(args.out, fname), "w", encoding="utf-8") as f:
+    out_path = os.path.join(args.out, fname)
+    with open(out_path, "w", encoding="utf-8") as f:
         f.write(gen_full(d))
+
+    # 写统一格式的last_run.json（供validator检测运行状态）
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        last_run_file = os.path.join(script_dir, "..", "data", "last_run.json")
+        os.makedirs(os.path.dirname(last_run_file), exist_ok=True)
+        last_run = {
+            "ok": True,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "data_date": d["date"],
+            "exit_code": 0,
+            "error": None,
+            "outputs": [out_path],
+        }
+        with open(last_run_file, "w", encoding="utf-8") as f:
+            json.dump(last_run, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"⚠️ 写last_run.json失败: {e}", file=sys.stderr)
     print(json.dumps({
         "date": d["date"], "prev_date": d["prev_date"],
         "cur_agg": {k: (round(v, 2) if isinstance(v, float) else v) for k, v in d["cur_agg"].items()},
