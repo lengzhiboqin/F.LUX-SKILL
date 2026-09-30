@@ -67,6 +67,10 @@ def _load_cdp_endpoints():
 import platform
 CDP_ENDPOINTS = _load_cdp_endpoints()
 REPORT_URL = "https://shangoue.meituan.com/#/page/manageAnalysis/pc#/report"
+HOME_URL = "https://shangoue.meituan.com/"
+LOGIN_URL = "https://waimaie.meituan.com/"
+ANTI_BOT_KEYWORDS = ["加载失败", "点此刷新页面重试", "人机验证", "安全验证", "验证失败"]
+COOKIE_VALIDITY_DAYS = 10  # cookie有效期7-15天，取中间值10天提醒
 
 
 def data_root():
@@ -146,10 +150,16 @@ def find_page(browser):
     # 没有已登录的现存标签页：如果有登录页，先等它跳转；否则新开页面跳转
     if login_page is not None:
         try:
-            login_page.goto(REPORT_URL, wait_until="domcontentloaded", timeout=45000)
-        except Exception:
-            pass
-        time.sleep(10)
+            human_like_navigate(login_page)  # 模拟人类操作导航，避免风控
+        except RuntimeError as e:
+            if "[ANTI_BOT_BLOCKED]" in str(e):
+                raise  # 反爬拦截，上层处理
+            # 其他导航错误，尝试直接跳转
+            try:
+                login_page.goto(REPORT_URL, wait_until="domcontentloaded", timeout=45000)
+                time.sleep(10)
+            except Exception:
+                pass
         if "shangoue.meituan.com" in login_page.url and "login" not in login_page.url:
             return login_page
         if "login" in login_page.url or "waimaie" in login_page.url:
@@ -157,13 +167,112 @@ def find_page(browser):
     # 没有任何相关标签页，新开一个
     if browser.contexts:
         pg = browser.contexts[0].new_page()
-        pg.goto(REPORT_URL, wait_until="domcontentloaded", timeout=45000)
-        time.sleep(10)
+        try:
+            human_like_navigate(pg)  # 模拟人类操作导航，避免风控
+        except RuntimeError as e:
+            if "[ANTI_BOT_BLOCKED]" in str(e):
+                raise
+            try:
+                pg.goto(REPORT_URL, wait_until="domcontentloaded", timeout=45000)
+                time.sleep(10)
+            except Exception:
+                pass
         if "shangoue.meituan.com" in pg.url and "login" not in pg.url:
             return pg
         if "login" in pg.url or "waimaie" in pg.url:
             raise RuntimeError("闪购登录态已失效，跳转到登录页，需人工重新登录")
     raise RuntimeError("未找到 shangoue.meituan.com 页面，请先登录")
+
+
+def detect_anti_bot(page):
+    """检测页面是否被美团反爬/人机识别拦截。
+    返回 (is_blocked, reason)。"""
+    try:
+        body_text = page.locator("body").inner_text(timeout=3000)
+    except Exception:
+        body_text = ""
+    for kw in ANTI_BOT_KEYWORDS:
+        if kw in body_text:
+            return True, f"页面包含反爬关键词: {kw}"
+    # 检查是否有人机识别SDK但页面未正常加载（无hashframe且正文很短）
+    has_hashframe = any(f.name == "hashframe" for f in page.frames)
+    if not has_hashframe and len(body_text.strip()) < 50 and "shangoue" in page.url:
+        return True, "页面未正常加载（无hashframe且正文过短），疑似风控拦截"
+    return False, ""
+
+
+def human_like_navigate(page, target_url=REPORT_URL):
+    """模拟人类操作进入商家端首页，再导航到目标页。
+    1. 先访问首页，等待页面完全加载
+    2. 模拟人类滚动和停留
+    3. 再导航到报表页
+    这样可以避免直接跳转到深层URL触发风控。"""
+    print("[anti-bot] 模拟人类操作导航...")
+    # 第一步：访问首页
+    page.goto(HOME_URL, wait_until="domcontentloaded", timeout=45000)
+    time.sleep(8)  # 等待首页JS完全加载
+    # 模拟人类滚动
+    try:
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight / 3)")
+        time.sleep(1)
+        page.evaluate("window.scrollTo(0, 0)")
+    except Exception:
+        pass
+    time.sleep(2)
+    # 检查首页是否被风控
+    blocked, reason = detect_anti_bot(page)
+    if blocked:
+        raise RuntimeError(f"[anti-bot] 首页被风控拦截: {reason}")
+    # 第二步：再导航到报表页
+    print("[anti-bot] 首页正常，导航到报表页...")
+    page.goto(target_url, wait_until="domcontentloaded", timeout=45000)
+    time.sleep(10)
+    # 检查报表页是否被风控
+    blocked, reason = detect_anti_bot(page)
+    if blocked:
+        raise RuntimeError(f"[anti-bot] 报表页被风控拦截: {reason}")
+    print("[anti-bot] 导航完成，页面正常")
+    return page
+
+
+def clear_cookies_and_relogin(browser, page):
+    """清空cookie，打开商家端登录页，返回登录页page。
+    调用方需要请求用户接管浏览器完成登录。"""
+    print("[anti-bot] 清空cookie并准备重新登录...")
+    ctx = page.context
+    # 清空所有cookie和缓存
+    ctx.clear_cookies()
+    cdp = ctx.new_cdp_session(page)
+    try:
+        cdp.send('Network.clearBrowserCache')
+        cdp.send('Network.clearBrowserCookies')
+    except Exception:
+        pass
+    # 导航到登录页
+    page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30000)
+    time.sleep(5)
+    print(f"[anti-bot] 登录页已打开: {page.url}")
+    return page
+
+
+def check_cookie_expiry():
+    """检查cookie是否即将过期（超过COOKIE_VALIDITY_DAYS天）。
+    读取配置文件中的last_login_time，如果超过有效期则返回True。"""
+    try:
+        config_path = os.path.expanduser("~/.config/shangou-pipeline/config.json")
+        if os.path.exists(config_path):
+            with open(config_path, encoding="utf-8") as f:
+                cfg = json.load(f)
+            last_login = cfg.get("last_login_time", "")
+            if last_login:
+                last_dt = datetime.strptime(last_login, "%Y-%m-%d %H:%M:%S")
+                days_since = (datetime.now() - last_dt).days
+                if days_since >= COOKIE_VALIDITY_DAYS:
+                    print(f"[anti-bot] ⚠️ cookie已使用{days_since}天，接近有效期（{COOKIE_VALIDITY_DAYS}天），建议重新登录")
+                    return True
+    except Exception:
+        pass
+    return False
 
 
 def verify_real_shangou_page(page):
@@ -194,6 +303,13 @@ def verify_real_shangou_page(page):
             body_text = page.locator("body").inner_text(timeout=3000)[:200]
         except Exception:
             pass
+        # 检查是否是反爬拦截（加载失败）
+        blocked, reason = detect_anti_bot(page)
+        if blocked:
+            raise RuntimeError(
+                f"[ANTI_BOT_BLOCKED] 美团反爬/人机识别拦截: {reason}。"
+                f" 页面正文: {body_text!r}。需要清空cookie重新登录。"
+            )
         raise RuntimeError(
             "未检测到报表 iframe（hashframe），当前页面不是闪购报表页。"
             f" 页面标题: {title!r}，页面正文片段: {body_text!r}"
@@ -664,10 +780,32 @@ def cmd_probe(browser):
         return
     # 导航到报表页
     if "#/report" not in page.url:
-        page.goto(REPORT_URL, wait_until="domcontentloaded", timeout=45000)
-        time.sleep(8)
+        try:
+            human_like_navigate(page)
+        except RuntimeError as e:
+            if "[ANTI_BOT_BLOCKED]" in str(e):
+                # 反爬拦截：清空cookie，打开登录页
+                print("[anti-bot] 检测到反爬拦截，清空cookie并打开登录页...")
+                clear_cookies_and_relogin(browser, page)
+                print(json.dumps({"logged_in": False, "anti_bot": True,
+                                   "url": page.url,
+                                   "message": "美团反爬拦截，已清空cookie，请重新登录"},
+                                  ensure_ascii=False, indent=2))
+                return
+            raise
     # 防 mock 页校验
-    verify_real_shangou_page(page)
+    try:
+        verify_real_shangou_page(page)
+    except RuntimeError as e:
+        if "[ANTI_BOT_BLOCKED]" in str(e):
+            print("[anti-bot] 检测到反爬拦截，清空cookie并打开登录页...")
+            clear_cookies_and_relogin(browser, page)
+            print(json.dumps({"logged_in": False, "anti_bot": True,
+                               "url": page.url,
+                               "message": "美团反爬拦截，已清空cookie，请重新登录"},
+                              ensure_ascii=False, indent=2))
+            return
+        raise
     fr = get_frame(page)
     deadline = time.time() + 25
     while time.time() < deadline and not form_ready(fr):
@@ -707,16 +845,32 @@ def main():
         return
 
     summary = {}
+    anti_bot_triggered = False
     try:
         page = find_page(browser)
         if "login" in page.url or "waimaie" in page.url:
             raise RuntimeError("未登录，请先在浏览器登录闪购商家端")
         if "#/report" not in page.url:
-            page.goto(REPORT_URL, wait_until="domcontentloaded", timeout=45000)
-            time.sleep(8)
+            try:
+                human_like_navigate(page)
+            except RuntimeError as e:
+                if "[ANTI_BOT_BLOCKED]" in str(e):
+                    print("[anti-bot] 检测到反爬拦截，清空cookie并打开登录页...")
+                    clear_cookies_and_relogin(browser, page)
+                    anti_bot_triggered = True
+                    raise RuntimeError("[ANTI_BOT] 美团反爬拦截，已清空cookie，请重新登录后重试")
+                raise
 
         # 防 mock 页：确认是真闪购后台才开始下载
-        verify_real_shangou_page(page)
+        try:
+            verify_real_shangou_page(page)
+        except RuntimeError as e:
+            if "[ANTI_BOT_BLOCKED]" in str(e):
+                print("[anti-bot] 检测到反爬拦截，清空cookie并打开登录页...")
+                clear_cookies_and_relogin(browser, page)
+                anti_bot_triggered = True
+                raise RuntimeError("[ANTI_BOT] 美团反爬拦截，已清空cookie，请重新登录后重试")
+            raise
 
         if args.cmd == "download":
             if not args.report:
@@ -734,11 +888,20 @@ def main():
                 except Exception as e:
                     summary[rep] = {"file": None, "failed": True, "note": str(e)[:120]}
                     print(f"  [{rep}] 失败跳过: {str(e)[:100]}", flush=True)
+    except RuntimeError as e:
+        if "[ANTI_BOT]" in str(e):
+            print(f"\n[anti-bot] {e}")
+            anti_bot_triggered = True
+        else:
+            raise
     finally:
         print("\n===== 采集摘要 =====")
         print(json.dumps(summary, ensure_ascii=False, indent=1))
         pw.stop()
 
+    # 反爬拦截：退出码4（需要重新登录）
+    if anti_bot_triggered:
+        sys.exit(4)
     # 有失败表则退出码 1（no_data 不算失败）
     failed = [k for k, v in summary.items() if v.get("failed")]
     sys.exit(1 if failed else 0)
