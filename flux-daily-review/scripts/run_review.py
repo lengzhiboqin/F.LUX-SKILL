@@ -289,22 +289,21 @@ def upload_to_feishu(report_path, folder_token):
 
 
 def send_wecom_notification(result, date_display):
-    """发送企微通知"""
+    """发送企微通知（规范换行排版：标题+分隔+逐行要点）"""
     lines = []
-    lines.append(f"**老大，每日复盘完成（{date_display}）**")
+    lines.append(f"📊 **每日复盘完成**")
+    lines.append(f"**{date_display}**")
     lines.append("")
-    lines.append(f"📊 今日执行任务：{result.get('total_tasks', '待统计')}个")
-    lines.append(f"🔍 全局检查发现问题：{result.get('problem_count', 0)}个")
-
+    lines.append(f"**今日执行任务**：{result.get('total_tasks', '待统计')} 个")
+    lines.append(f"**全局检查发现问题**：{result.get('problem_count', 0)} 个")
+    lines.append("")
     if result.get("ready_for_main"):
-        lines.append(f"✅ 技能可合并main：{'、'.join(result['ready_for_main'])}")
-
+        lines.append(f"**可合并main**：{'、'.join(result['ready_for_main'])}")
     if result.get("new_skills"):
-        lines.append(f"🆕 新技能自动加入：{'、'.join(result['new_skills'])}")
-
+        lines.append(f"**新技能加入**：{'、'.join(result['new_skills'])}")
     lines.append("")
-    lines.append("📝 优化建议将单独请示，确认后执行")
-    lines.append("📄 详细复盘报告已上传飞书「产出物/每日复盘/」")
+    lines.append("**优化建议**：单独请示，确认后执行")
+    lines.append("**复盘报告**：已上传飞书「产出物/每日复盘/」")
 
     text = "\n".join(lines)
 
