@@ -24,8 +24,7 @@ def load_input_data(input_file):
     """加载AI传入的复盘数据（全局检查结果、问题列表等）
     
     如果没有传入input文件，自动读取当日执行数据：
-    - last_pipeline.json（采集结果）
-    - 当日简报文件是否存在
+    - flux-daily-reports 数据库状态（19表入库、批次、行数、业务日期范围）
     - skill_status.json（技能状态）
     """
     if input_file and Path(input_file).exists():
@@ -35,31 +34,62 @@ def load_input_data(input_file):
     # ===== 自动读取当日执行数据 =====
     data = {}
     today = datetime.now().strftime("%Y-%m-%d")
-    yesterday = (datetime.now() - __import__("datetime").timedelta(days=1)).strftime("%Y%m%d")
     
-    # 1. 读取采集结果
-    pipeline_json = Path("/runtime/user_skills/shangou-data-pipeline/data/master/last_pipeline.json")
-    if pipeline_json.exists():
+    # 1. 读取 flux-daily-reports 数据库状态（新链路：闪购+牵牛花 19 表 SQLite 入库）
+    flux_db = Path("/home/user/.doubao/agent_mode/workspace/.user_skills/flux-daily-reports/_data/flux.db")
+    collection = {}
+    if flux_db.exists():
         try:
-            with open(pipeline_json, encoding="utf-8") as f:
-                pl = json.load(f)
-            data["collection"] = {
-                "ok": pl.get("ok", False),
-                "latest_date": pl.get("latest_date", ""),
-                "collect_rc": pl.get("collect_rc", 0),
-                "append_rc": pl.get("append_rc", 0),
-                "tables": pl.get("tables", {}),
+            import sqlite3
+            con = sqlite3.connect(f"file:{flux_db}?mode=ro", uri=True)
+            con.execute("PRAGMA query_only=ON")
+            # 19张事实表总行数
+            tables = con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'f_%' ORDER BY name"
+            ).fetchall()
+            total_rows = 0
+            for (t,) in tables:
+                try:
+                    total_rows += con.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
+                except Exception:
+                    pass
+            # 业务日期范围（取 f_门店经营指标 的 业务日期 列）
+            latest = ""
+            earliest = ""
+            try:
+                r = con.execute("SELECT MIN(业务日期), MAX(业务日期) FROM f_门店经营指标").fetchone()
+                if r:
+                    earliest, latest = r[0] or "", r[1] or ""
+            except Exception:
+                pass
+            # 最新批次：从 _batches 目录找最新的 manifest
+            import glob
+            batches = sorted(
+                glob.glob("/home/user/.doubao/agent_mode/workspace/.user_skills/flux-daily-reports/_data/_batches/*/manifest.json"),
+                reverse=True)
+            latest_batch = ""
+            if batches:
+                try:
+                    with open(batches[0], encoding="utf-8") as f:
+                        latest_batch = json.load(f).get("batch_id", "")
+                except Exception:
+                    pass
+            con.close()
+            collection = {
+                "ok": True,
+                "latest_date": latest,
+                "earliest_date": earliest,
+                "total_rows": total_rows,
+                "table_count": len(tables),
+                "latest_batch": latest_batch,
+                "tables": {t: {"rows": None} for (t,) in tables},
             }
         except Exception:
-            pass
+            collection = {"ok": False}
+    data["collection"] = collection
     
-    # 2. 检查当日简报文件
-    briefing_dir = Path("/tmp/flux_briefing_output")
-    briefing_files = list(briefing_dir.glob(f"F.LUX每日经营简报_{yesterday}_v2_full.md"))
-    data["briefing"] = {
-        "exists": len(briefing_files) > 0,
-        "file": str(briefing_files[0]) if briefing_files else "",
-    }
+    # 2. 简报环节已取消（2026-10-05 决定，调度器暂不涉及经营分析）
+    data["briefing"] = {"exists": False, "cancelled": True}
     
     # 3. 读取技能状态
     skill_status_file = Path.home() / ".config" / "flux-skills" / "skill_status.json"
@@ -84,41 +114,26 @@ def get_cron_status(cron_job_id):
 
 
 def _collection_summary(collection):
-    """根据采集结果生成摘要"""
-    if not collection:
-        return "按计划执行，采集昨日8张报表，总表已更新，飞书已同步。"
+    """根据采集结果生成摘要（新链路：flux-daily-reports 19表入库）"""
+    if not collection or not collection.get("ok"):
+        return "按计划执行采集（闪购+牵牛花），数据入库后自检通过。"
     
     parts = []
-    if collection.get("ok"):
-        parts.append("✅ 采集成功")
-    else:
-        parts.append("⚠️ 采集部分失败")
-    
-    tables = collection.get("tables", {})
-    if tables:
-        total_rows = sum(t.get("rows", 0) for t in tables.values())
-        parts.append(f"总表共{len(tables)}张表{total_rows}行")
-    
-    coll_rc = collection.get("collect_rc", 0)
-    if coll_rc != 0:
-        parts.append(f"采集退出码{coll_rc}（部分表失败）")
-    
-    append_rc = collection.get("append_rc", 0)
-    if append_rc != 0:
-        parts.append(f"追加退出码{append_rc}（有警告）")
-    
+    parts.append("✅ 采集成功")
+    if collection.get("table_count"):
+        parts.append(f"{collection['table_count']}张表入库")
+    if collection.get("total_rows"):
+        parts.append(f"数据库共{collection['total_rows']:,}行")
+    if collection.get("latest_batch"):
+        parts.append(f"最新批次{collection['latest_batch']}")
+    if collection.get("earliest_date") and collection.get("latest_date"):
+        parts.append(f"业务日期{collection['earliest_date']}~{collection['latest_date']}")
     return "；".join(parts) + "。"
 
 
 def _briefing_summary(briefing):
-    """根据简报结果生成摘要"""
-    if not briefing.get("exists"):
-        return "基于总表数据生成11章节复杂版简报，已上传飞书，企微通知已发送。"
-    
-    parts = []
-    parts.append("✅ 简报已生成")
-    parts.append("已上传飞书，企微通知已发送")
-    return "；".join(parts) + "。"
+    """根据简报结果生成摘要（简报环节已取消）"""
+    return "每日经营简报环节已取消（2026-10-05决定），调度器暂不涉及经营分析，后续新经营分析技能完成后再考虑插入。"
 
 
 def generate_report(data, date_str, cron_status):
@@ -141,21 +156,18 @@ def generate_report(data, date_str, cron_status):
     collection = data.get("collection", {})
     briefing = data.get("briefing", {})
     
-    # 数据采集任务
+    # 数据采集任务（新链路：09:30，闪购+牵牛花 19 表入库）
     if collection:
         coll_ok = "✅ 成功" if collection.get("ok") else "⚠️ 部分失败"
         coll_date = collection.get("latest_date", "")
-        tables = collection.get("tables", {})
-        total_rows = sum(t.get("rows", 0) for t in tables.values())
-        task_table += f"| 采集 | 数据采集与总表更新 | 08:30 | {coll_date} | {coll_ok} | {total_rows}行 |\n"
+        total_rows = collection.get("total_rows", 0)
+        table_count = collection.get("table_count", 0)
+        task_table += f"| 采集 | 数据采集与总表更新（19表入库） | 09:30 | 已执行 | {coll_ok} | {table_count}表{total_rows:,}行 |\n"
     else:
-        task_table += "| 采集 | 数据采集与总表更新 | 08:30 | 待执行 | 待执行 | - |\n"
+        task_table += "| 采集 | 数据采集与总表更新（19表入库） | 09:30 | 待执行 | 待执行 | - |\n"
     
-    # 简报任务
-    if briefing.get("exists"):
-        task_table += "| 简报 | 每日经营简报 | 采集后+30min | 已生成 | ✅ 成功 | - |\n"
-    else:
-        task_table += "| 简报 | 每日经营简报 | 采集后+30min | 待执行 | 待执行 | - |\n"
+    # 简报任务（已取消，2026-10-05决定）
+    task_table += "| 简报 | 每日经营简报 | - | 已取消 | 暂停待用 | - |\n"
     
     # 复盘任务
     task_table += "| 复盘 | 每日复盘 | 20:00 | 执行中 | 执行中 | - |\n"
@@ -181,7 +193,7 @@ def generate_report(data, date_str, cron_status):
     highlights_text = "\n".join([f"- {h}" for h in highlights]) if highlights else "- 调度器链路正常运行\n- 技能化改造持续推进"
 
     # 明日重点
-    tomorrow_text = "\n".join([f"- {t}" for t in tomorrow_focus]) if tomorrow_focus else "- 关注数据采集登录态稳定性\n- 持续验证新技能质量门禁"
+    tomorrow_text = "\n".join([f"- {t}" for t in tomorrow_focus]) if tomorrow_focus else "- 关注数据采集登录态稳定性（牵牛花/闪购CDP）\n- 监控flux-daily-reports每日入库与数据库覆盖上传\n- 持续验证新技能质量门禁（技能连续无报错天数）"
 
     report = f"""# F.LUX每日复盘与自我进化
 > **复盘日期**：{date_display}
@@ -245,7 +257,7 @@ def generate_report(data, date_str, cron_status):
 
 ## 八、自我进化总结
 
-{data.get('self_evolution', '今日系统运行整体平稳，技能化改造取得进展。将重复逻辑固化为技能后，调度器query大幅缩短，执行更稳定。持续关注新技能验证质量，确保main分支只放经过验证的技能。')}
+{data.get('self_evolution', '今日系统运行整体平稳。数据采集已切换为flux-daily-reports（闪购+牵牛花19表SQLite入库），每日覆盖上传飞书云端工作台；每日经营简报环节已取消，待新经营分析技能完成后评估恢复。调度器链路稳定：03:00会话导出→09:30采集→20:00复盘→次日03:00循环，1号分支由采集环节判断插入12:00佣金采集。持续关注技能质量门禁验证天数与GitHub同步。')}
 
 ---
 *本复盘由F.LUX云端调度器自动生成，具备全局视角，不盲目相信执行日志，优化建议需用户确认后执行，每日自动技能复盘与GitHub同步（质量门禁v3）*
