@@ -200,8 +200,13 @@ def run_github_sync(repo_dir):
         return False, []
 
 
-def check_ready_for_main(status):
-    """检查哪些技能可以合并到main"""
+def check_ready_for_main(status, repo_dir=None):
+    """检查哪些技能可以合并到main
+
+    v2（修复漏洞）：不再依赖 status 里可能为空的 current_branch（它只在"本次同步有
+    代码变化"时才被写入），改为直接检查本地/远程是否存在对应 dev/<name> 分支。
+    只要连续>=3天无报错、未合并、且存在 dev 分支，即进入 ready 队列。
+    """
     ready = []
     for name, s in status.items():
         days = s.get("consecutive_success_days", 0)
@@ -210,11 +215,93 @@ def check_ready_for_main(status):
             days = int(days)
         except (ValueError, TypeError):
             days = 0
-        branch = s.get("current_branch", "")
         promoted = s.get("promoted_to_main", "")
-        if days >= 3 and branch.startswith("dev/") and not promoted:
+        if days < 3 or promoted:
+            continue
+        # 修复：分支存在性用真实 git 判断（本地 ref 或远程 ref），不再看 status.current_branch
+        has_dev = False
+        if repo_dir:
+            for ref in (f"refs/heads/dev/{name}", f"refs/remotes/origin/dev/{name}"):
+                try:
+                    r = subprocess.run(
+                        ["git", "-C", repo_dir, "show-ref", "--quiet", ref],
+                        capture_output=True, text=True)
+                    if r.returncode == 0:
+                        has_dev = True
+                        break
+                except Exception:
+                    pass
+        if has_dev:
             ready.append(name)
+        else:
+            log(f"  ⚠️  {name} 连续{days}天无报错但未找到 dev/{name} 分支，跳过")
     return ready
+
+
+def auto_merge_to_main(repo_dir, name):
+    """把技能 dev 分支的最新内容自动合并到 main。
+
+    用「目录抽取法」：只 checkout dev/<name>/ 目录到 main 工作区并提交，而不是
+    整分支 merge——避免把 dev 分支线性历史里曾出现的大文件（如 flux.db）或其他
+    技能文件带进 main。合并成功后 push origin main。
+    """
+    import datetime as _dt
+    try:
+        # 1. 切到 main
+        r = subprocess.run(["git", "-C", repo_dir, "checkout", "main"],
+                           capture_output=True, text=True, timeout=120)
+        if r.returncode != 0:
+            log(f"    checkout main 失败: {r.stderr.strip()[:200]}")
+            return False
+
+        # 2. 抽取技能目录（若目录在 main 已存在则覆盖更新）
+        r = subprocess.run(["git", "-C", repo_dir, "checkout", f"dev/{name}", "--", f"{name}/"],
+                           capture_output=True, text=True, timeout=120)
+        if r.returncode != 0:
+            log(f"    checkout dev/{name} -- {name}/ 失败: {r.stderr.strip()[:200]}")
+            return False
+        subprocess.run(["git", "-C", repo_dir, "add", "-A"], capture_output=True, text=True, timeout=60)
+
+        # 3. 移除业务数据/生成产物（不入库）
+        r = subprocess.run(
+            ["git", "-C", repo_dir, "ls-files", "--cached"],
+            capture_output=True, text=True, timeout=60)
+        for f in r.stdout.splitlines():
+            if f.endswith(".db") or "/_data/" in f or f"{name}/output/" in f:
+                subprocess.run(["git", "-C", repo_dir, "rm", "--cached", f],
+                               capture_output=True, text=True, timeout=30)
+
+        # 4. 若无实际改动则不提交
+        r = subprocess.run(["git", "-C", repo_dir, "status", "--porcelain"],
+                           capture_output=True, text=True, timeout=30)
+        if not r.stdout.strip():
+            log(f"    {name} 目录在 main 与 dev 无差异，无需提交")
+            return True
+
+        # 5. 提交
+        days = ""
+        try:
+            import json as _json, os as _os
+            sf = _os.path.expanduser("~/.config/flux-skills/skill_status.json")
+            with open(sf, encoding="utf-8") as f:
+                days = str(_json.load(f).get(name, {}).get("consecutive_success_days", ""))
+        except Exception:
+            pass
+        msg = f"promote: {name} 自动合并到main（连续{days}天无报错验证通过）" if days else \
+              f"promote: {name} 自动合并到main"
+        subprocess.run(["git", "-C", repo_dir, "commit", "-m", msg],
+                       capture_output=True, text=True, timeout=60)
+
+        # 6. push
+        r = subprocess.run(["git", "-C", repo_dir, "push", "origin", "main"],
+                           capture_output=True, text=True, timeout=180)
+        if r.returncode != 0:
+            log(f"    push 失败: {r.stderr.strip()[:300]}")
+            return False
+        return True
+    except Exception as e:
+        log(f"    auto_merge_to_main 异常: {e}")
+        return False
 
 
 def send_wecom_notification(result, chat_id=None):
@@ -258,8 +345,15 @@ def send_wecom_notification(result, chat_id=None):
             L.append("")
         L.append("")
 
-    # ✅ 可合并main
-    if result["ready_for_main"]:
+    # ✅ 可合并main（v3：自动合并）
+    if result.get("auto_merged"):
+        L.append("✅ **已自动合并到main（连续3天无报错）**")
+        L.append("")
+        for s in result["auto_merged"]:
+            L.append(f"· {s}")
+            L.append("")
+        L.append("")
+    elif result["ready_for_main"]:
         L.append("✅ **可合并main（连续3天无报错）**")
         L.append("")
         for s in result["ready_for_main"]:
@@ -446,11 +540,26 @@ def main():
                     status[name]["promoted_to_main"] = ""
                     status[name]["consecutive_success_days"] = 0
 
-    # 7. 检查可合并main
-    ready_for_main = check_ready_for_main(status)
+    # 7. 检查可合并main（v2：用真实 git 分支判断，修复 branch="" 漏判）
+    ready_for_main = check_ready_for_main(status, repo_dir)
     if ready_for_main:
         log("")
         log(f"=== 可合并main: {', '.join(ready_for_main)} ===")
+
+    # 7b. 自动合并到main（v3：连续达标自动合并，不再只提醒）
+    auto_merged = []
+    if args.sync and repo_dir and not args.dry_run and ready_for_main:
+        log("")
+        log("=== 自动合并到main（连续达标自动执行）===")
+        for name in ready_for_main:
+            ok = auto_merge_to_main(repo_dir, name)
+            if ok:
+                auto_merged.append(name)
+                status[name]["promoted_to_main"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                status[name]["current_branch"] = "main"
+                log(f"  ✅ {name} 已自动合并到main")
+            else:
+                log(f"  ⚠️  {name} 自动合并失败（详见上方）")
 
     # 8. 保存状态
     if not args.dry_run:
@@ -468,6 +577,7 @@ def main():
         "new_skills": new_skills,
         "synced_to_dev": synced_to_dev,
         "ready_for_main": ready_for_main,
+        "auto_merged": auto_merged,
         "issues_created": issues_created,
         "skills": result_skills,
     }
