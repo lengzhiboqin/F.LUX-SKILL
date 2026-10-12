@@ -1,0 +1,19 @@
+# F.LUX 日常技能包 —— 运行依赖（版本按本机实测锁定）
+#
+# 只列**真正被脚本导入**的第三方包；其余全部是 Python 标准库。
+# 本机实测环境：Python 3.13.14 / Windows；Linux 按同一清单安装验证。
+#
+# 安装：
+#   python -m pip install -r requirements.txt
+#   python -m playwright install chromium    # 仅闪购采集需要
+
+openpyxl==3.1.5            # 读牵牛花 XLSX（多行表头）
+playwright==1.63.0         # 闪购页面操作与导出下载
+websocket-client==1.9.2    # 通过 CDP 连接已登录的牵牛花浏览器
+
+# playwright 的传递依赖（锁定以保证两端一致）
+greenlet==3.5.6
+pyee==13.0.1
+
+# 只读查询依赖宿主自带 Node，不在此清单内。
+# 要求 Node 24+（使用内置 node:sqlite），已验证：node v24.16.0
