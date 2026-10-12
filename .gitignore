@@ -38,3 +38,9 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# F.LUX 业务数据与生成产物（不入库）
+_data/
+flux-daily-reports/_data/
+output/
+xhs-publisher/output/
