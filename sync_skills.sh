@@ -30,6 +30,7 @@ ISSUE_BODY=""
 # 排除模式
 EXCLUDE_PATTERNS=(
   "data/" "__pycache__/" "*.pyc" "config.json" "*.log" "*.xlsx" "*.csv"
+  "_data/" "*.db" "output/" "*.png" "*.jpg" "*.jpeg" "*.gif" "*.bak"
 )
 
 # 自动发现技能：扫描 .user_skills/ 下所有带 SKILL.md 的目录
