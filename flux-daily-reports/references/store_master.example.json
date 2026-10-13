@@ -1,0 +1,35 @@
+{
+ "version": "example",
+ "data_day": "2026-10-01",
+ "generated_at": "2026-10-01T00:00:00+08:00",
+ "source": "示例文件（**合成数据，非真实门店**）—— 真实主档留在运行工作目录，不进入通用技能包",
+ "stores": [
+  {
+   "master_id": "S0001",
+   "qianniu": {"name": "示例门店A", "aliases": ["示例门店A（旧名）"], "store_id": "900001"},
+   "shangou": {"merchant_ids": ["700001"]},
+   "status": "active",
+   "scope": "both",
+   "first_seen": "2026-01-01",
+   "last_seen": "2026-10-01"
+  },
+  {
+   "master_id": "S0002",
+   "qianniu": {"name": "示例门店B", "aliases": [], "store_id": "900002"},
+   "shangou": {"merchant_ids": ["700002"]},
+   "status": "active",
+   "scope": "both",
+   "first_seen": "2026-01-01",
+   "last_seen": "2026-10-01"
+  },
+  {
+   "master_id": "S0003",
+   "qianniu": {"name": "示例门店C", "aliases": ["示例门店C（分店）"], "store_id": "900003"},
+   "shangou": {"merchant_ids": ["700003"]},
+   "status": "active",
+   "scope": "qianniu_only",
+   "first_seen": "2026-01-01",
+   "last_seen": "2026-10-01"
+  }
+ ]
+}

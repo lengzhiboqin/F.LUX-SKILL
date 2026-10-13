@@ -10,11 +10,17 @@ build/
 
 # 数据文件（业务数据不入库）
 data/
+_data/
 *.xlsx
 *.csv
 *.json
 !package.json
 !requirements.json
+# 技能口径/契约配置纳入版本控制（纯文本、不含凭据；references 目录未被忽略，可重新包含）
+# 含：取数说明书/清洗规则/表注册/历史表头/示例配置/取数契约/golden元数据
+!**/references/*.json
+!**/references/specs/*.json
+!**/references/golden/**/meta.json
 
 # 配置文件（含本地路径/凭证，不入库）
 config.json

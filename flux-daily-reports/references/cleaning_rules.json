@@ -1,0 +1,754 @@
+{
+ "rule_version": "rules-hist-v1",
+ "derived_from": [
+  "scripts/normalize.py",
+  "scripts/store_sqlite.py"
+ ],
+ "note": "由已审核的旧规则常量派生；未决业务口径保持待核，不猜值",
+ "tables": {
+  "门店经营指标": {
+   "platform": "牵牛花",
+   "type": "daily",
+   "header_rows": 1,
+   "expected_cols": 19,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "门店标准ID"
+   ],
+   "date_source": "filename",
+   "channel_scope": "全渠道",
+   "drop_cols": [
+    "序号"
+   ],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [
+    "净利润(账单口径)",
+    "售罄缺勤损失",
+    "商品原价销售额(剔除退款)",
+    "客单价",
+    "有效订单包装费",
+    "有效订单金额",
+    "用户支付平台配送费",
+    "线上毛利",
+    "线下其他",
+    "订单实付客单价",
+    "订单实付金额(剔除退款)"
+   ],
+   "percent_numeric_cols": [],
+   "summary_rule": null
+  },
+  "门店商品指标明细": {
+   "platform": "牵牛花",
+   "type": "daily",
+   "header_rows": 2,
+   "expected_cols": 38,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "门店标准ID"
+   ],
+   "date_source": "filename",
+   "channel_scope": "全渠道",
+   "drop_cols": [],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [
+    "商品原价销售额(剔除退款)",
+    "商品原价销售额(含退款)",
+    "商品实付金额",
+    "商品总补贴金额",
+    "商品销售收入(剔除退款)",
+    "商家单品优惠",
+    "商家商品优惠",
+    "商家整单优惠",
+    "商家补贴金额",
+    "平台商品补贴",
+    "平台补贴金额",
+    "总销售收入",
+    "日均品类销售额",
+    "订单退款金额"
+   ],
+   "percent_numeric_cols": [],
+   "summary_rule": {
+    "column": "门店id",
+    "value": "-999"
+   },
+   "optional_keys": [
+    "门店标准ID"
+   ]
+  },
+  "品类分析": {
+   "platform": "牵牛花",
+   "type": "daily",
+   "header_rows": 2,
+   "expected_cols": 11,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "品类"
+   ],
+   "date_source": "filename",
+   "channel_scope": "全渠道",
+   "drop_cols": [],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [
+    "商品原价销售额(含退款)",
+    "商品毛利额",
+    "商品缺勤损失",
+    "总销售收入"
+   ],
+   "percent_numeric_cols": [],
+   "summary_rule": {
+    "column": "一级品类",
+    "value": "汇总"
+   }
+  },
+  "配送指标明细": {
+   "platform": "牵牛花",
+   "type": "daily",
+   "header_rows": 2,
+   "expected_cols": 100,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "门店标准ID"
+   ],
+   "date_source": "filename",
+   "channel_scope": "全渠道",
+   "drop_cols": [],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [
+    "三方基础配送费",
+    "三方配送小费",
+    "三方配送费",
+    "单均三方基础配送费",
+    "单均三方配送小费",
+    "单均三方配送费",
+    "单均履约服务费",
+    "履约服务费",
+    "配送态度问题退款金额",
+    "配送超时退款金额"
+   ],
+   "percent_numeric_cols": [],
+   "summary_rule": {
+    "column": "门店名称",
+    "value": "汇总"
+   },
+   "optional_keys": [
+    "门店标准ID"
+   ]
+  },
+  "配送距离分布": {
+   "platform": "牵牛花",
+   "type": "daily",
+   "header_rows": 2,
+   "expected_cols": 22,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "门店标准ID"
+   ],
+   "date_source": "filename",
+   "channel_scope": "全渠道",
+   "drop_cols": [],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [],
+   "percent_numeric_cols": [],
+   "summary_rule": null
+  },
+  "门店流量排行": {
+   "platform": "牵牛花",
+   "type": "daily",
+   "header_rows": 1,
+   "expected_cols": 10,
+   "load_to_db": true,
+   "snapshot": false,
+   "exclusion_reason": "用户 2026-09-27 裁决：整表不入库（继续采集，仅保留原始留档）",
+   "include_unloaded_note": "默认不入库；显式 --include-unloaded 时仍可迁入（历史归档场景）",
+   "business_key": [
+    "业务日期",
+    "门店"
+   ],
+   "date_source": "filename",
+   "channel_scope": "全渠道",
+   "drop_cols": [],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [],
+   "percent_numeric_cols": [],
+   "summary_rule": null,
+   "_reinstated_note": "2026-10-02 阶段3交付：按 Mr.王 裁决恢复入库（原排除理由已在 exclusion_reason 留档）"
+  },
+  "商品流量_近30天": {
+   "platform": "牵牛花",
+   "type": "snapshot",
+   "header_rows": 3,
+   "expected_cols": 30,
+   "load_to_db": true,
+   "snapshot": true,
+   "business_key": [],
+   "business_key_note": "快照表按窗口整体替换，无稳定业务键；库内以 (_scope_id,_行序号) 作主键，修订时整组 DELETE+INSERT",
+   "date_source": "filename",
+   "channel_scope": "全渠道",
+   "drop_cols": [],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [],
+   "percent_numeric_cols": [],
+   "summary_rule": {
+    "column": "商品信息",
+    "value": "汇总"
+   }
+  },
+  "门店流量_分来源": {
+   "platform": "牵牛花",
+   "type": "daily",
+   "header_rows": 1,
+   "expected_cols": 7,
+   "load_to_db": true,
+   "snapshot": false,
+   "exclusion_reason": "牵牛花侧无门店列（维度是流量来源）；闪购「流量渠道明细(新)」已是门店口径，覆盖了它",
+   "include_unloaded_note": "默认不入库；显式 --include-unloaded 时仍可迁入（历史归档场景）",
+   "business_key": [
+    "业务日期",
+    "维度"
+   ],
+   "date_source": "filename",
+   "channel_scope": "全渠道",
+   "drop_cols": [],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [],
+   "percent_numeric_cols": [],
+   "summary_rule": null,
+   "_reinstated_note": "2026-10-02 阶段3交付：按 Mr.王 裁决恢复入库（原排除理由已在 exclusion_reason 留档）"
+  },
+  "商品流量_店内": {
+   "platform": "牵牛花",
+   "type": "daily",
+   "header_rows": 3,
+   "expected_cols": 30,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "SPU"
+   ],
+   "date_source": "filename",
+   "channel_scope": "全渠道",
+   "drop_cols": [],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [],
+   "percent_numeric_cols": [],
+   "summary_rule": {
+    "column": "商品信息",
+    "value": "汇总"
+   }
+  },
+  "商品流量_店外": {
+   "platform": "牵牛花",
+   "type": "daily",
+   "header_rows": 3,
+   "expected_cols": 30,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "SPU"
+   ],
+   "date_source": "filename",
+   "channel_scope": "全渠道",
+   "drop_cols": [],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [],
+   "percent_numeric_cols": [],
+   "summary_rule": {
+    "column": "商品信息",
+    "value": "汇总"
+   }
+  },
+  "门店营业时长": {
+   "platform": "牵牛花",
+   "type": "daily",
+   "header_rows": 1,
+   "expected_cols": 15,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "门店标准ID",
+    "渠道名称"
+   ],
+   "date_source": "filename",
+   "channel_scope": "全渠道",
+   "drop_cols": [
+    "序号"
+   ],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [],
+   "percent_numeric_cols": [],
+   "summary_rule": null
+  },
+  "门店财务明细": {
+   "platform": "闪购",
+   "type": "daily",
+   "header_rows": 1,
+   "expected_cols": 26,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "门店标准ID"
+   ],
+   "date_source": "column:开始时间",
+   "date_source_candidates": [
+    "开始时间"
+   ],
+   "channel_scope": "美团闪购单渠道",
+   "drop_cols": [
+    "结束时间"
+   ],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [
+    "商品原价销售额",
+    "商品商家补贴金额",
+    "商品实付销售额",
+    "商品平台补贴金额",
+    "商品总补贴金额",
+    "商家承担活动金额",
+    "平台承担活动金额",
+    "打包费",
+    "订单小额付款",
+    "订单总金额",
+    "订单折扣后金额",
+    "配送费"
+   ],
+   "percent_numeric_cols": [],
+   "summary_rule": null
+  },
+  "门店成交明细": {
+   "platform": "闪购",
+   "type": "daily",
+   "header_rows": 1,
+   "expected_cols": 41,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "门店标准ID"
+   ],
+   "date_source": "column:开始日期",
+   "date_source_candidates": [
+    "开始日期"
+   ],
+   "channel_scope": "美团闪购单渠道",
+   "drop_cols": [
+    "结束日期",
+    "资质有效期(仅药品)",
+    "资质类型(仅药品)"
+   ],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [
+    "包装费",
+    "商品原价",
+    "商品实付金额",
+    "配送费"
+   ],
+   "percent_numeric_cols": [],
+   "summary_rule": null
+  },
+  "商品数据": {
+   "platform": "闪购",
+   "type": "daily",
+   "header_rows": 1,
+   "expected_cols": 45,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "下单时间",
+    "订单编号",
+    "商品SKU码",
+    "商品名称"
+   ],
+   "optional_keys": [
+    "商品SKU码"
+   ],
+   "date_source": "column:下单时间",
+   "date_source_candidates": [
+    "下单时间"
+   ],
+   "channel_scope": "美团闪购单渠道",
+   "drop_cols": [
+    "日期"
+   ],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [
+    "商品原价销售额",
+    "商品商家补贴金额",
+    "商品实付销售额",
+    "商品平台补贴金额",
+    "商品总补贴金额",
+    "商家承担活动金额",
+    "平台承担活动金额",
+    "打包费",
+    "订单小额付款",
+    "订单总金额",
+    "订单折扣后金额",
+    "配送费"
+   ],
+   "percent_numeric_cols": [],
+   "summary_rule": null
+  },
+  "问题订单数据": {
+   "platform": "闪购",
+   "type": "event",
+   "header_rows": 1,
+   "expected_cols": 12,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "下单时间",
+    "订单编号"
+   ],
+   "date_source": "column:下单时间",
+   "date_source_candidates": [
+    "下单时间"
+   ],
+   "channel_scope": "美团闪购单渠道",
+   "drop_cols": [],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [
+    "订单总金额(元)",
+    "退款金额(元)"
+   ],
+   "percent_numeric_cols": [],
+   "summary_rule": null
+  },
+  "流量明细(新)": {
+   "platform": "闪购",
+   "type": "daily",
+   "header_rows": 1,
+   "expected_cols": 45,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "门店标准ID"
+   ],
+   "date_source": "column:日期",
+   "date_source_candidates": [
+    "日期"
+   ],
+   "channel_scope": "美团闪购单渠道",
+   "drop_cols": [
+    "曝光-入店率",
+    "入店-下单率",
+    "加购-下单率",
+    "曝光-下单率",
+    "曝光-入店率-品牌新客",
+    "入店-下单率-品牌新客",
+    "加购-下单率-品牌新客",
+    "曝光-下单率-品牌新客",
+    "曝光-入店率-品牌老客",
+    "入店-下单率-品牌老客",
+    "加购-下单率-品牌老客",
+    "曝光-下单率-品牌老客",
+    "曝光-入店率-门店新客",
+    "入店-下单率-门店新客",
+    "加购-下单率-门店新客",
+    "曝光-下单率-门店新客",
+    "曝光-入店率-门店老客",
+    "入店-下单率-门店老客",
+    "加购-下单率-门店老客",
+    "曝光-下单率-门店老客"
+   ],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [],
+   "percent_numeric_cols": [],
+   "summary_rule": null,
+   "drop_cols_note": "率值列（曝光-入店率等）不入库：历史库结构/_catalog/AI取数说明书三方一致不含率值列，仅原始文件输出（平台列未变，见历史基线 09-25 同列）。v0.2 验收三轮 gen2 从未成功新采，此 drop 配置未触发；2026-10-02 首次实采 10-01 数据时补齐。"
+  },
+  "流量渠道明细(新)": {
+   "platform": "闪购",
+   "type": "daily",
+   "header_rows": 1,
+   "expected_cols": 30,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "门店标准ID",
+    "渠道"
+   ],
+   "date_source": "column:日期",
+   "date_source_candidates": [
+    "日期"
+   ],
+   "channel_scope": "美团闪购单渠道",
+   "drop_cols": [
+    "曝光-入店率",
+    "入店-下单率",
+    "加购-下单率",
+    "曝光-下单率",
+    "曝光-入店率-门店新客",
+    "入店-下单率-门店新客",
+    "加购-下单率-门店新客",
+    "曝光-下单率-门店新客",
+    "曝光-入店率-门店老客",
+    "入店-下单率-门店老客",
+    "加购-下单率-门店老客",
+    "曝光-下单率-门店老客"
+   ],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [],
+   "percent_numeric_cols": [],
+   "summary_rule": null,
+   "drop_cols_note": "率值列（曝光-入店率等）不入库：历史库结构/_catalog/AI取数说明书三方一致不含率值列，仅原始文件输出（平台列未变，见历史基线 09-25 同列）。v0.2 验收三轮 gen2 从未成功新采，此 drop 配置未触发；2026-10-02 首次实采 10-01 数据时补齐。"
+  },
+  "评价数据": {
+   "platform": "闪购",
+   "type": "event",
+   "header_rows": 1,
+   "expected_cols": 20,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "评价提交时间",
+    "店铺ID",
+    "订单商品"
+   ],
+   "date_source": "column:评价提交日期",
+   "date_source_candidates": [
+    "评价提交日期"
+   ],
+   "channel_scope": "美团闪购单渠道",
+   "drop_cols": [],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [
+    "订单总金额(元)",
+    "订单折扣后金额(元)"
+   ],
+   "percent_numeric_cols": [
+    "订单商品点踩率(%)"
+   ],
+   "summary_rule": null
+  },
+  "售后订单数据": {
+   "platform": "闪购",
+   "type": "event",
+   "header_rows": 1,
+   "expected_cols": 19,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "展示订单号"
+   ],
+   "date_source": "column:售后发起时间",
+   "date_source_candidates": [
+    "售后发起时间",
+    "下单时间"
+   ],
+   "channel_scope": "美团闪购单渠道",
+   "drop_cols": [],
+   "renames": {
+    "一级品类": "品类",
+    "商品信息": "商品名称",
+    "门店名称": "门店",
+    "店铺名称": "门店",
+    "商家名称": "门店",
+    "日期": "业务日期",
+    "开始日期": "业务日期",
+    "开始时间": "业务日期",
+    "评价提交日期": "业务日期"
+   },
+   "money_cols": [
+    "订单总金额(元)"
+   ],
+   "percent_numeric_cols": [],
+   "summary_rule": null
+  }
+ }
+}

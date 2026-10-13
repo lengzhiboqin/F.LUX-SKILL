@@ -1,0 +1,18 @@
+{
+  "_comment": "F.LUX 日常技能包配置样例。复制为 config.json 后按宿主环境修改。**所有相对路径按本文件所在目录解析**；不得写入任何凭据、Cookie 或真实原件。",
+  "data_root": "./_data",
+  "ledger_path": "./_data/_ledger.json",
+  "batch_dir": "./_data/_batches",
+  "db_path": "./_data/flux.db",
+  "backup_dir": "./_data/_backup",
+  "rules_path": "./references/cleaning_rules.json",
+  "master_path": "./references/store_master.example.json",
+  "registry_path": "./references/table_registry.json",
+  "hist_path": "./references/historical_headers.json",
+ "cdp_host": "127.0.0.1",
+ "cdp_port": 9222,
+ "_cdp_note": "云端宿主可用环境变量覆盖：QIANNIU_CDP / SHANGOU_CDP（见 references/installation.md 云端宿主一节）。Windows 下 9222 常被占用，闪购会按 9333→9223→9222 顺序探活。",
+ "timeout_s": 180,
+  "attempts": 1,
+  "scope_id": "all"
+}
