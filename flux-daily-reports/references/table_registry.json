@@ -276,6 +276,32 @@
    "structure_version": "api-2026-10-13",
    "source_api": "waimaieapp/ad/v3/statistics/today/info",
    "note": "门店推广今日实时，门店×小时，只留当日整表替换"
+  },
+  {
+   "table": "门店商品全量快照",
+   "platform": "牵牛花",
+   "type": "snapshot",
+   "default_offset_days": 0,
+   "date_field": "date_fmt",
+   "date_fmt": "day",
+   "header_rows": 1,
+   "expected_cols": 88,
+   "structure_version": "api-2026-10-13",
+   "source_api": "qnh-gw3/api/product/store/export",
+   "note": "门店商品全量(门店×SPU×SKU)，每天整表替换，约134MB；67字段展开88列"
+  },
+  {
+   "table": "门店商品缺勤明细",
+   "platform": "牵牛花",
+   "type": "daily",
+   "default_offset_days": 0,
+   "date_field": "date_fmt",
+   "date_fmt": "day",
+   "header_rows": 1,
+   "expected_cols": 20,
+   "structure_version": "api-2026-10-13",
+   "source_api": "qnh-gw3/api/product/store/export",
+   "note": "缺勤=已上线+渠道库存0+月销量>0；真断货/有货未同步；约1355行/天，年200MB"
   }
  ]
 }

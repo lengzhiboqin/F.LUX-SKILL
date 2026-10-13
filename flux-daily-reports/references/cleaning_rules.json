@@ -810,6 +810,56 @@
    "summary_rule": null,
    "source_api": "waimaieapp/ad/v3/statistics/shangou_onestop/today/info",
    "_note": "v0.3新增：门店推广今日实时"
+  },
+  "门店商品全量快照": {
+   "platform": "牵牛花",
+   "type": "snapshot",
+   "header_rows": 1,
+   "expected_cols": 88,
+   "load_to_db": true,
+   "snapshot": true,
+   "business_key": [],
+   "business_key_note": "全量快照(门店×SPU×SKU)，每天整表替换，无稳定业务键；67字段展开88列",
+   "date_source": "api",
+   "channel_scope": "门店商品",
+   "drop_cols": [],
+   "renames": {
+    "门店编码": "门店标准ID"
+   },
+   "money_cols": [
+    "采购价",
+    "美团闪购渠道售价",
+    "饿了么渠道售价"
+   ],
+   "percent_numeric_cols": [],
+   "summary_rule": null,
+   "source_api": "qnh-gw3/api/product/store/export",
+   "_note": "v0.3新增：门店商品全量快照，约134MB"
+  },
+  "门店商品缺勤明细": {
+   "platform": "牵牛花",
+   "type": "daily",
+   "header_rows": 1,
+   "expected_cols": 20,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "门店标准ID",
+    "SKUID"
+   ],
+   "business_key_note": "缺勤=已上线+渠道库存0+月销量>0；缺勤类型真断货/有货未同步",
+   "date_source": "api",
+   "channel_scope": "门店商品",
+   "drop_cols": [],
+   "renames": {},
+   "money_cols": [
+    "美团闪购渠道售价"
+   ],
+   "percent_numeric_cols": [],
+   "summary_rule": null,
+   "source_api": "qnh-gw3/api/product/store/export",
+   "_note": "v0.3新增：约1355行/天，年约200MB"
   }
  }
 }
