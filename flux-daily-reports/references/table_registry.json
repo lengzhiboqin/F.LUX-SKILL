@@ -250,6 +250,32 @@
    "expected_cols_channel": null,
    "structure_version": "real-2026-10-01",
    "expected_cols_source": "T01 §1 历史样本列数"
+  },
+  {
+   "table": "门店推广日效果",
+   "platform": "闪购",
+   "type": "daily",
+   "default_offset_days": 1,
+   "date_field": "time",
+   "date_fmt": "compact",
+   "header_rows": 0,
+   "expected_cols": 21,
+   "structure_version": "api-2026-10-13",
+   "source_api": "waimaieapp/ad/v4/effect/multi/history",
+   "note": "门店推广一站式，API直采(免token,acctId全店通用)，门店×日期，近30天details"
+  },
+  {
+   "table": "门店推广今日实时",
+   "platform": "闪购",
+   "type": "snapshot",
+   "default_offset_days": 0,
+   "date_field": "today",
+   "date_fmt": "hour",
+   "header_rows": 0,
+   "expected_cols": 12,
+   "structure_version": "api-2026-10-13",
+   "source_api": "waimaieapp/ad/v3/statistics/today/info",
+   "note": "门店推广今日实时，门店×小时，只留当日整表替换"
   }
  ]
 }

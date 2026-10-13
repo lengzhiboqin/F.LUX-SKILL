@@ -749,6 +749,67 @@
    ],
    "percent_numeric_cols": [],
    "summary_rule": null
+  },
+  "门店推广日效果": {
+   "platform": "闪购",
+   "type": "daily",
+   "header_rows": 0,
+   "expected_cols": 21,
+   "load_to_db": true,
+   "snapshot": false,
+   "business_key": [
+    "业务日期",
+    "门店标准ID",
+    "推广产品"
+   ],
+   "business_key_note": "API直采（免token，acctId全店通用），门店×日期×产品",
+   "date_source": "api",
+   "channel_scope": "闪购推广",
+   "drop_cols": [],
+   "renames": {
+    "日期": "业务日期"
+   },
+   "money_cols": [
+    "花费",
+    "成交金额",
+    "同行花费"
+   ],
+   "percent_numeric_cols": [
+    "点击率",
+    "同行点击率"
+   ],
+   "summary_rule": null,
+   "source_api": "waimaieapp/ad/v4/effect/multi/shangou_onestop/history",
+   "_note": "v0.3新增：门店推广一站式，近30天details按天"
+  },
+  "门店推广今日实时": {
+   "platform": "闪购",
+   "type": "snapshot",
+   "header_rows": 0,
+   "expected_cols": 12,
+   "load_to_db": true,
+   "snapshot": true,
+   "business_key": [
+    "业务日期",
+    "门店标准ID",
+    "小时"
+   ],
+   "business_key_note": "今日实时，门店×小时，只留当日整表替换",
+   "date_source": "api",
+   "channel_scope": "闪购推广",
+   "drop_cols": [],
+   "renames": {
+    "日期": "业务日期"
+   },
+   "money_cols": [
+    "花费"
+   ],
+   "percent_numeric_cols": [
+    "点击率"
+   ],
+   "summary_rule": null,
+   "source_api": "waimaieapp/ad/v3/statistics/shangou_onestop/today/info",
+   "_note": "v0.3新增：门店推广今日实时"
   }
  }
 }
