@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from common.cdp import QN                                     # noqa: E402
 from common.dates import daterange, to_compact, to_dashed      # noqa: E402
+from verify_goods_flow import verify_file                     # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 BASE_OUT = ROOT / "牵牛花已下载表_v2"
@@ -42,6 +43,16 @@ URL_COMMON = "/goldengateway/empower/complexModule/downloadTable"
 URL_GENERIC = ("/goldengateway/empower/generic/table/download"
                "?yodaReady=h5&csecplatform=4&csecversion=4.3.0")
 URL_COMPONENT = "/goldengateway/empower/component/show/downloadTable"
+
+# ============================================================
+# 卡点3：商品流量近30天「就绪点」（平台横幅：昨日数据预计 14:00 更新）
+# 早于该点采集，平台不报错、静默回退窗口，给历史稀疏快照。
+# 采集脚本对该表：内容比对门兜底 + 未就绪时等待到就绪点后重采。
+# ============================================================
+GOODS_FLOW_READY_HOUR = 14
+GOODS_FLOW_READY_MIN = 5        # 就绪点 +5 分钟缓冲
+GOODS_FLOW_READY_RETRIES = 4    # 就绪点后最多再轮询/重采次数
+GOODS_FLOW_MIN_EXPOSURE = 100000
 
 # ============================================================
 # 渠道（ADR-0011 规则 0：牵牛花必须按渠道拆采）
@@ -944,7 +955,8 @@ class Collector:
         self.ensure_route(cfg["route"])
         # ⚠️ R10：提交前记录任务 id 基线，只认提交之后新建的任务
         baseline = self.task_ids(25)
-        resp = self.submit(cfg["url"], build_body(table, d, channel))
+        req_body = build_body(table, d, channel)
+        resp = self.submit(cfg["url"], req_body)
         time.sleep(3)
         self.qn.dismiss_modal(self.qn.session)
 
@@ -959,7 +971,8 @@ class Collector:
         self.ensure_route("#/operation/task?queryType=TAB_DOWNLOAD")
         task = self.find_task(cfg["prefix"], d, baseline=baseline,
                               suffix=task_suffix(table, d, channel))
-        rec = {"table": table, "date": d, "submit": resp, "channel": channel}
+        rec = {"table": table, "date": d, "submit": resp, "channel": channel,
+               "request_body": req_body}
         if not task:
             rec["status"] = "任务未找到"
             self.manifest[k] = rec; self._save_manifest()
@@ -999,6 +1012,25 @@ class Collector:
             self._save_manifest()
             print(f"  [失败] {table} {d} 列数校验不通过: {detail}")
             return rec
+        # 卡点3：商品流量近30天额外跑「内容级比对门」（稀疏件也是30列，列数门拦不住）
+        if table == "商品流量_近30天":
+            expected_end = rolling_window(d, cfg["rolling_days"])[1]
+            prev_file = self._find_prev_snapshot(table, fname)
+            verdict, vout = verify_file(fname, expected_end,
+                                        task_name=task["n"],
+                                        prev_file=prev_file,
+                                        min_exposure=GOODS_FLOW_MIN_EXPOSURE)
+            rec["content_verdict"] = verdict
+            rec["content_failed_gates"] = vout.get("failed_gates")
+            rec["content_fingerprint"] = vout["fingerprint"]
+            if verdict != "PASS":
+                rec["status"] = "数据未就绪"
+                rec["detail"] = vout.get("failed_gates")
+                self.manifest[k] = rec
+                self._save_manifest()
+                print(f"  [未就绪] {table} {d} 内容比对未过: "
+                      f"{vout.get('failed_gates')}（应于14点后重采）")
+                return rec
         rec["status"] = "ok"
         rec["cols"] = detail
         # ⚠️ 滚动表：**覆盖入库**，把上一份快照移到归档目录（不删除）
@@ -1009,6 +1041,46 @@ class Collector:
         if verbose:
             print(f"  [完成] {table} {d}  {size} 字节  ← {task['n']}")
         return rec
+
+    def _ready_point(self, day):
+        """商品流量就绪点的本地时间（提交日当天的 14:05）。"""
+        c = to_compact(day)
+        return _dt.datetime(int(c[:4]), int(c[4:6]), int(c[6:8]),
+                            GOODS_FLOW_READY_HOUR, GOODS_FLOW_READY_MIN)
+
+    def run_goods_flow_ready(self, day, wait_ready=True, verbose=True):
+        """采集商品流量近30天；若未就绪，等待到就绪点后自动重采（不把稀疏件入库）。"""
+        rec = self.run_one("商品流量_近30天", day, verbose=verbose)
+        if rec.get("status") == "ok" or not wait_ready:
+            return rec
+        for attempt in range(1, GOODS_FLOW_READY_RETRIES + 1):
+            wait_s = (self._ready_point(day) - _dt.datetime.now()).total_seconds()
+            if wait_s > 0:
+                print(f"  [等待] 商品流量未就绪，{wait_s/60:.0f}分钟后"
+                      f"（{self._ready_point(day):%H:%M}）重采", flush=True)
+                end = time.time() + wait_s
+                while time.time() < end:
+                    time.sleep(min(30, end - time.time()))
+            print(f"  [重采] 第 {attempt} 次", flush=True)
+            rec = self.run_one("商品流量_近30天", day, verbose=verbose)
+            if rec.get("status") == "ok":
+                return rec
+            time.sleep(600)   # 就绪点后仍未就绪，10分钟后再试
+        return rec
+
+    def _find_prev_snapshot(self, table, exclude_file):
+        """找当前目录（或归档目录）里除本次外的最近一份快照，用于环比门；无则空串。"""
+        tdir = os.path.join(BASE_OUT, table)
+        cands = []
+        for d in (tdir, os.path.join(tdir, SNAPSHOT_ARCHIVE_DIR)):
+            if not os.path.isdir(d):
+                continue
+            for p in os.listdir(d):
+                fp = os.path.join(d, p)
+                if (os.path.isfile(fp) and fp != exclude_file
+                        and p.endswith(".xlsx") and "_ch" not in p):
+                    cands.append((os.path.getmtime(fp), fp))
+        return sorted(cands)[-1][1] if cands else ""
 
     def _supersede_snapshots(self, table, new_path):
         """滚动表覆盖入库：旧快照移入 `_废弃_旧快照/`，并修正 manifest 里的路径。
@@ -1081,6 +1153,8 @@ def main():
                     help='渠道 ID，逗号分隔（如 "100,200"）。仅对支持的表生效')
     ap.add_argument("--gap", type=float, default=3.0, help="每次提交间隔秒")
     ap.add_argument("--dry-run", action="store_true", help="只打印计划，不实际采集")
+    ap.add_argument("--wait-ready", action="store_true",
+                    help="商品流量近30天未就绪时，等待到14:05后自动重采（卡点3）")
     args = ap.parse_args()
 
     tables = TARGET_TABLES if (args.all or not args.tables) else args.tables
@@ -1127,7 +1201,10 @@ def main():
             label = f"{table} {day}" + (f" ch{ch}" if ch else "")
             print(f"[{n}/{len(jobs)}] {label}", flush=True)
             try:
-                rec = c.run_one(table, day, channel=ch)
+                if table == "商品流量_近30天" and args.wait_ready:
+                    rec = c.run_goods_flow_ready(day, wait_ready=True)
+                else:
+                    rec = c.run_one(table, day, channel=ch)
             except Exception as e:
                 print(f"   [异常] {type(e).__name__}: {str(e)[:150]}", flush=True)
                 try:

@@ -1,10 +1,10 @@
 {
-  "spec_version": "0.1-draft",
+  "spec_version": "0.2",
   "table_key": "商品流量_近30天",
   "platform": "牵牛花",
   "tenant": "芙乐（租户ID 1011047）",
-  "last_updated": "2026-10-13",
-  "confirmed_by": "AI 浏览器实测 queryTable（2026-10-13 凌晨）；downloadTable 导出路径待 10-13 白天用户在场复核",
+  "last_updated": "2026-10-14",
+  "confirmed_by": "AI 浏览器实测 queryTable（2026-10-13 凌晨）；downloadTable 导出路径 2026-10-14 下午就绪后实测通过（窗口正确、内容比对PASS）",
 
   "1_页面入口": {
     "url": "qnh.meituan.com 登录后按业务跳转，商品流量页路由 #/data/product/flow-performance",
@@ -34,7 +34,7 @@
       "method": "POST",
       "path": "/goldengateway/empower/component/show/downloadTable",
       "script_also_uses": "/goldengateway/empower/complexModule/downloadTable",
-      "status": "pending——需白天数据就绪后真实提交一次导出，核对返回任务名窗口是否与请求一致（区分『纯时机问题』与『导出接口日期偏移』）",
+      "status": "confirmed——2026-10-14 16:30 就绪后真实提交，返回任务名 导出商品流量分析20261014_20260914-20261013，窗口与请求一致、内容比对 PASS",
       "viewCode": "goods_flow_analysis_goods_list"
     },
     "viewCode": "goods_flow_analysis_goods_list"
@@ -60,7 +60,7 @@
     "就绪时点": "页面横幅：昨日数据预计 14:00 更新。早于该时点，昨日近30天聚合快照可能未就绪",
     "平台静默行为": "数据未就绪时平台不报错，而是把窗口结束日回退到最新完整日（实测：请求 09-12~10-11，实际任务名 09-11~10-10）",
     "历史稀疏化": "平台仅对『当前最新窗口』返回全量明细；窗口结束日早于最新完整日（历史窗口）时，全部门店数据被稀疏化：结束日10-10=1537商品/43683曝光、10-11=1740/53155、当前10-12=3003/1676665。同店当前窗口数百商品，历史窗口仅数十。",
-    "采集结论": "该表必须在每日 ≥14:00 数据就绪后采集（从早 08:30 主批次剥离为晚批次）"
+    "采集结论": "该表必须在每日 ≥14:05 数据就绪后采集（从早 08:30 主批次剥离为晚批次）。脚本侧双保险：① run_goods_flow_ready 未就绪时等待到 14:05 后自动重采（--wait-ready）；② 内容比对门 verify_file 拦截稀疏件（窗口结束日/曝光量级/环比断崖），不通过拒绝入库。"
   },
 
   "5_字段释义": {
@@ -77,7 +77,7 @@
     "指标列": [
       {"indicCode": "view_uv", "col_index": 12, "name": "商品曝光人数", "unit": "人", "方向": "越大越好", "status": "confirmed"},
       {"indicCode": "click_uv", "col_index": 15, "name": "商品点击人数", "unit": "人", "方向": "越大越好", "status": "confirmed"},
-      {"indicCode": "ord_uv_gmv", "col_index": 18, "name": "下单人数", "unit": "人", "方向": "越大越好", "status": "confirmed", "note": "字段名带 gmv 但页面口径为下单人数，非金额；与经营指标『有效订单』口径不同，待核"},
+      {"indicCode": "ord_uv_gmv", "col_index": 18, "name": "下单人数", "unit": "人", "方向": "越大越好", "status": "confirmed", "note": "口径=商品维度的下单人数：每个商品被多少人下单，再对所有商品求和。一个订单含多个商品，会在每个商品各计1，故约为订单数的3倍（10-14窗口12043 vs 有效订单约4000），不能当订单数用。字段名带 gmv 但页面口径为下单人数，非金额。"},
       {"indicCode": "view_click_rate", "col_index": 21, "name": "点击转化率", "unit": "%", "口径": "点击/曝光", "status": "待与metrics.json核对"},
       {"indicCode": "click_ord_rate", "col_index": 24, "name": "下单转化率", "unit": "%", "口径": "下单/点击", "status": "待与metrics.json核对"},
       {"indicCode": "view_ord_rate", "col_index": 27, "name": "商品转化率", "unit": "%", "口径": "下单/曝光", "status": "待与metrics.json核对"}
@@ -102,8 +102,16 @@
   },
 
   "8_待确认项": [
-    "downloadTable 导出接口在数据就绪后是否返回正确窗口、是否有独立的日期偏移（10-13 白天实测）",
-    "近30天聚合快照的精确就绪时点（单日明细已就绪但聚合快照可能更晚）",
-    "下单人数(ord_uv_gmv) 与经营指标『有效订单』口径差异（12136 vs 3749）"
-  ]
+    "近30天聚合快照的精确就绪时点（实测 14:00 后就绪，建议固定 14:05 采集；个别天是否更晚待观察）",
+    "调度落地：需把商品流量从 08:30 主批次拆出，新增 14:05 后晚批次，或在主批次用 --wait-ready 自动等待",
+    "内容比对门 min_exposure=10万 阈值是否随品牌增长校准（当前全量约 166 万）"
+  ],
+  "9_下单口径核查结论": {
+    "核查日期": "2026-10-14",
+    "商品流量_下单人数_30天": 12043,
+    "经营指标_有效订单数_30天": 3932,
+    "经营指标_下单顾客数_30天": 4039,
+    "比值": "下单人数约为有效订单数的 3.0 倍",
+    "结论": "非错误。商品流量『下单人数』为商品维度求和（一单多品重复计），订单数为去重口径；诊断系统不得把该列当订单数。"
+  }
 }

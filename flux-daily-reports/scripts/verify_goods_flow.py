@@ -90,23 +90,14 @@ def fingerprint(rows):
     return fp
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--file", required=True)
-    ap.add_argument("--expected-end", required=True, help="期望窗口结束日 YYYYMMDD（应为昨天）")
-    ap.add_argument("--task-name", default="", help="平台返回任务名（用于窗口一致性）")
-    ap.add_argument("--prev-file", default="", help="上一快照（用于环比连续性）")
-    ap.add_argument("--min-exposure", type=float, default=100000,
-                    help="品牌全门店近30天汇总曝光下限；全量约百万级，稀疏快照仅数万，默认10万")
-    ap.add_argument("--drop-threshold", type=float, default=0.5,
-                    help="较上一快照曝光环比下跌超过该比例即判残缺，默认0.5（腰斩）")
-    args = ap.parse_args()
-
+def verify_file(file, expected_end, task_name="", prev_file="",
+                min_exposure=100000, drop_threshold=0.5):
+    """内容级比对，返回 (verdict, out)。verdict ∈ {'PASS','FAIL'}。可被采集脚本 import。"""
     gates = []
     def gate(name, ok, detail, hard=True):
         gates.append({"gate": name, "pass": bool(ok), "hard": hard, "detail": detail})
 
-    rows = load(args.file)
+    rows = load(file)
     fp = fingerprint(rows)
 
     # gate 1：结构
@@ -118,25 +109,26 @@ def main():
          f"汇总曝光={fp['exposure']} 点击={fp['click']}")
 
     # gate 2：窗口一致性（平台任务名结束日必须等于请求结束日）
-    win = parse_window(args.task_name)
+    win = parse_window(task_name)
     if win:
-        gate("窗口_结束日一致", win[1] == args.expected_end,
-             f"任务名窗口 {win[0]}~{win[1]}，期望结束日 {args.expected_end}")
+        gate("窗口_结束日一致", win[1] == expected_end,
+             f"任务名窗口 {win[0]}~{win[1]}，期望结束日 {expected_end}")
     else:
-        gate("窗口_结束日一致", False, f"无法从任务名解析窗口：{args.task_name!r}（manifest 必须记录任务名）")
+        gate("窗口_结束日一致", False,
+             f"无法从任务名解析窗口：{task_name!r}（manifest 必须记录任务名）")
 
     # gate 3：全量量级（品牌全门店近30天曝光下限）
-    gate("全量_曝光量级", fp["exposure"] is not None and fp["exposure"] >= args.min_exposure,
-         f"汇总曝光 {fp['exposure']}，低于全量下限 {args.min_exposure:g}（疑似历史稀疏快照）")
+    gate("全量_曝光量级", fp["exposure"] is not None and fp["exposure"] >= min_exposure,
+         f"汇总曝光 {fp['exposure']}，低于全量下限 {min_exposure:g}（疑似历史稀疏快照）")
 
     # gate 4：环比连续性（与上一快照比，断崖式下跌即残缺）
-    if args.prev_file:
-        prev = fingerprint(load(args.prev_file))
+    if prev_file:
+        prev = fingerprint(load(prev_file))
         if prev["exposure"] and fp["exposure"] is not None:
             ratio = (fp["exposure"] - prev["exposure"]) / prev["exposure"]
-            gate("环比_曝光未断崖", ratio >= -args.drop_threshold,
+            gate("环比_曝光未断崖", ratio >= -drop_threshold,
                  f"本期曝光 {fp['exposure']:.0f} vs 上期 {prev['exposure']:.0f}，环比 {ratio:.1%}，"
-                 f"下跌超过 {args.drop_threshold:.0%} 判残缺")
+                 f"下跌超过 {drop_threshold:.0%} 判残缺")
         else:
             gate("环比_曝光未断崖", False, "上一快照或本期曝光为空，无法环比")
 
@@ -144,13 +136,31 @@ def main():
     verdict = "PASS" if not hard_fail else "FAIL"
     out = {
         "table": "商品流量_近30天",
-        "file": args.file,
-        "expected_end": args.expected_end,
+        "file": file,
+        "expected_end": expected_end,
         "fingerprint": fp,
         "verdict": verdict,
         "gates": gates,
-        "action": "允许入库" if verdict == "PASS" else "拒绝入库：判定数据未就绪/残缺，记录后延后至14:00后重采",
+        "failed_gates": [g["gate"] for g in hard_fail],
+        "action": ("允许入库" if verdict == "PASS"
+                   else "拒绝入库：判定数据未就绪/残缺，记录后延后至14:00后重采"),
     }
+    return verdict, out
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--file", required=True)
+    ap.add_argument("--expected-end", required=True, help="期望窗口结束日 YYYYMMDD（应为昨天）")
+    ap.add_argument("--task-name", default="", help="平台返回任务名（用于窗口一致性）")
+    ap.add_argument("--prev-file", default="", help="上一快照（用于环比连续性）")
+    ap.add_argument("--min-exposure", type=float, default=100000,
+                    help="品牌全门店近30天汇总曝光下限；全量约百万级，稀疏快照仅数万，默认10万")
+    ap.add_argument("--drop-threshold", type=float, default=0.5,
+                    help="较上一快照曝光环比下跌超过该比例即判残缺，默认0.5（腰斩）")
+    args = ap.parse_args()
+    verdict, out = verify_file(args.file, args.expected_end, args.task_name,
+                               args.prev_file, args.min_exposure, args.drop_threshold)
     print(json.dumps(out, ensure_ascii=False, indent=2))
     sys.exit(0 if verdict == "PASS" else 2)
 
