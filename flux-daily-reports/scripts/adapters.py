@@ -19,6 +19,19 @@ from common import dates
 
 LOGIN_HINTS = ("login", "waimaie", "passport", "验证码", "安全验证")
 
+
+def _is_login_url(url):
+    """判断 URL 是否落在登录/验证页。
+
+    注意牵牛花登录成功后会跳 `home.html#/data/home/new?fromSource=loginPage`，
+    query 参数里残留 `loginPage` 字样，但实际已是业务首页；只按路径段（剥掉 ?
+    之后的 query 参数）匹配，避免误判为未登录。
+    """
+    if not url:
+        return False
+    path = url.split("?", 1)[0]
+    return any(h in path for h in LOGIN_HINTS)
+
 # 闪购 gen2 流量表：表单用「时间周期」控件且 `config_gen2()` 硬编码点「昨日」，
 # 无法按请求日期配置 —— 定向回采时必须单独拒绝（见 `_collect_shangou`）。
 SHANGOU_GEN2_TABLES = {"流量明细(新)", "流量渠道明细(新)"}
@@ -290,7 +303,7 @@ def _collect_shangou(task, config):
     with sync_playwright() as pw:
         browser = sg.connect_browser(pw)
         page = sg.find_page(browser)
-        if any(h in (page.url or "") for h in LOGIN_HINTS):
+        if _is_login_url(page.url):
             return _result(task, C.S_BLOCKED,
                            error={"code": "LOGIN_REQUIRED",
                                   "detail": "闪购站点未登录：%s" % page.url})
@@ -341,7 +354,7 @@ def precheck_login(config):
                and host in (pg.get("url") or "")]
         if not hit:
             out[p] = {"ok": False, "detail": "没找到 %s 标签页，请先打开并登录" % host}
-        elif any(any(h in (pg.get("url") or "") for h in LOGIN_HINTS) for pg in hit):
+        elif any(_is_login_url(pg.get("url")) for pg in hit):
             out[p] = {"ok": False, "detail": "%s 落在登录/验证页，请人工完成登录" % host}
         else:
             out[p] = {"ok": True, "detail": hit[0].get("url")}
