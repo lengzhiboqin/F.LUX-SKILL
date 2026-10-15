@@ -262,7 +262,10 @@
    "expected_cols": 21,
    "structure_version": "api-2026-10-13",
    "source_api": "waimaieapp/ad/v4/effect/multi/history",
-   "note": "门店推广一站式，API直采(免token,acctId全店通用)，门店×日期，近30天details"
+   "note": "门店推广一站式，API直采(免token,acctId全店通用)，门店×日期，近30天details",
+   "collect_via": "standalone",
+   "standalone_collect": "scripts/ad_collect.py",
+   "standalone_load": "scripts/ad_load.py"
   },
   {
    "table": "门店推广今日实时",
@@ -275,7 +278,10 @@
    "expected_cols": 12,
    "structure_version": "api-2026-10-13",
    "source_api": "waimaieapp/ad/v3/statistics/today/info",
-   "note": "门店推广今日实时，门店×小时，只留当日整表替换"
+   "note": "门店推广今日实时，门店×小时，只留当日整表替换",
+   "collect_via": "standalone",
+   "standalone_collect": "scripts/ad_collect.py",
+   "standalone_load": "scripts/ad_load.py"
   },
   {
    "table": "门店商品全量快照",
@@ -288,7 +294,10 @@
    "expected_cols": 88,
    "structure_version": "api-2026-10-13",
    "source_api": "qnh-gw3/api/product/store/export",
-   "note": "门店商品全量(门店×SPU×SKU)，每天整表替换，约134MB；67字段展开88列"
+   "note": "门店商品全量(门店×SPU×SKU)，每天整表替换，约134MB；67字段展开88列",
+   "collect_via": "standalone",
+   "standalone_collect": "scripts/store_collect.py",
+   "standalone_load": "scripts/store_load.py"
   },
   {
    "table": "门店商品缺勤明细",
@@ -301,7 +310,10 @@
    "expected_cols": 20,
    "structure_version": "api-2026-10-13",
    "source_api": "qnh-gw3/api/product/store/export",
-   "note": "缺勤=已上线+渠道库存0+月销量>0；真断货/有货未同步；约1355行/天，年200MB"
+   "note": "缺勤=已上线+渠道库存0+月销量>0；真断货/有货未同步；约1355行/天，年200MB",
+   "collect_via": "standalone",
+   "standalone_collect": "scripts/store_collect.py",
+   "standalone_load": "scripts/store_load.py"
   }
  ]
 }

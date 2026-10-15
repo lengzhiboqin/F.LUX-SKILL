@@ -945,11 +945,22 @@ class Collector:
 
     def run_one(self, table, d, verbose=True, channel=None):
         cfg = TABLES[table]
-        k = self._key(table, d, channel)
+        # d 一律是**提交日**（采集日）。
+        # 缓存键用**完整窗口**（rolling为 start-end，单日为当日）：这样每天以当日提交日
+        # 重新采、窗口更新到昨天；day 若传错（business_date=d-1）窗口会变，键也变，
+        # 不会命中昨天的错误缓存而静默复用。文件名只用窗口结束日 end_c（与 task
+        # business_date 对齐，供 validate_raw 的 DATE_MISMATCH 校验）。
+        if cfg.get("rolling_days"):
+            start_c, end_c = rolling_window(d, cfg["rolling_days"])
+            key_date = f"{start_c}-{end_c}"
+        else:
+            start_c = end_c = to_compact(d)
+            key_date = end_c
+        k = self._key(table, key_date, channel)
         rec = self.manifest.get(k)
         if rec and rec.get("status") == "ok":
             if verbose:
-                print(f"  [跳过] {table} {d}（已完成）")
+                print(f"  [跳过] {table} {end_c}（已完成）")
             return rec
 
         self.ensure_route(cfg["route"])
@@ -971,8 +982,8 @@ class Collector:
         self.ensure_route("#/operation/task?queryType=TAB_DOWNLOAD")
         task = self.find_task(cfg["prefix"], d, baseline=baseline,
                               suffix=task_suffix(table, d, channel))
-        rec = {"table": table, "date": d, "submit": resp, "channel": channel,
-               "request_body": req_body}
+        rec = {"table": table, "date": end_c, "submit_day": d, "submit": resp,
+               "channel": channel, "request_body": req_body}
         if not task:
             rec["status"] = "任务未找到"
             self.manifest[k] = rec; self._save_manifest()
@@ -990,7 +1001,7 @@ class Collector:
 
         outdir = os.path.join(BASE_OUT, table)
         os.makedirs(outdir, exist_ok=True)
-        fname = os.path.join(outdir, f"{table}_{d}"
+        fname = os.path.join(outdir, f"{table}_{end_c}"
                               + (f"_ch{channel}" if channel else "") + ".xlsx")
         h, size = self.download(task["id"], fname)
         if h is None:
@@ -1014,7 +1025,7 @@ class Collector:
             return rec
         # 卡点3：商品流量近30天额外跑「内容级比对门」（稀疏件也是30列，列数门拦不住）
         if table == "商品流量_近30天":
-            expected_end = rolling_window(d, cfg["rolling_days"])[1]
+            expected_end = end_c   # 窗口结束日 = 提交日-1（昨天），不随错误day漂移
             prev_file = self._find_prev_snapshot(table, fname)
             verdict, vout = verify_file(fname, expected_end,
                                         task_name=task["n"],

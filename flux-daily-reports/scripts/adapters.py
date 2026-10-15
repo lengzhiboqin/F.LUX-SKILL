@@ -181,9 +181,20 @@ def _collect_qianniu(task, config):
                                  (config.get("cdp_host"), config.get("cdp_port")))
 
     col = qn.Collector()
+    # 商品流量近30天是滚动快照：run_one 的 day 必须是**提交日**（窗口结束日+1），
+    # 窗口才是 [T-30, T-1]；传 business_date(T-1) 会整体早一天（结束日变 T-2）。
+    is_goods_flow = (task["table"] == "商品流量_近30天")
+    if is_goods_flow and task.get("window_end"):
+        submit_day = dates.shift_iso(task["window_end"], 1)
+    else:
+        submit_day = task["business_date"]
     try:
-        rec = col.run_one(task["table"], dates.to_compact(task["business_date"]),
-                          verbose=False, channel=channel)
+        if is_goods_flow and config.get("wait_ready"):
+            rec = col.run_goods_flow_ready(dates.to_compact(submit_day),
+                                          wait_ready=True, verbose=False)
+        else:
+            rec = col.run_one(task["table"], dates.to_compact(submit_day),
+                              verbose=False, channel=channel)
     finally:
         try:
             col.close()
@@ -191,6 +202,8 @@ def _collect_qianniu(task, config):
             pass
 
     def path_for(table, d, ch):
+        # 兜底文件名以窗口结束日（task business_date = end_c）命名，与 run_one 输出对齐；
+        # 正常情况下 map_qianniu_rec 优先用 rec.file（实际路径），用不到这里。
         p = os.path.join(rdir, table)
         name = "%s_%s%s.xlsx" % (table, dates.to_compact(d), "_ch%s" % ch if ch else "")
         return os.path.join(p, name)
