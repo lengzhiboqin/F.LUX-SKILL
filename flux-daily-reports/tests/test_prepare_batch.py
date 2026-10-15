@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""T4：19 表规则、清洗与最终结构（对应 spec S2-1/S2-2）。"""
+"""T4：全部表规则、清洗与最终结构（对应 spec S2-1/S2-2）。"""
 import json
 import os
 import shutil
@@ -20,22 +20,25 @@ REAL_REG = os.path.join(tests.REFERENCES, "table_registry.json")
 
 
 class TestRulesIntegrity(unittest.TestCase):
-    """真实规则与注册表的一致性（19 表全覆盖）。"""
+    """真实规则与注册表的一致性（全表覆盖）。"""
 
     def test_rules_cover_all_19_registry_tables(self):
         rules = load_rules(REAL_RULES)
         reg = REG.load_registry(REAL_REG)
         self.assertEqual(set(rules["tables"]), set(REG.table_names(reg)))
-        self.assertEqual(len(rules["tables"]), 19)
+        self.assertEqual(len(rules["tables"]), len(REG.table_names(reg)))
 
     def test_every_load_to_db_table_has_business_key(self):
         rules = load_rules(REAL_RULES)
+        snapshot_with_key = {"门店推广今日实时"}  # 当日整表替换、但行级有主键
         for t, r in rules["tables"].items():
             if r["load_to_db"] and not r["snapshot"]:
                 self.assertTrue(r["business_key"], "缺业务键：%s" % t)
-            if r["snapshot"]:
-                # 滚动快照整表替换，无业务键；靠窗口结束日判新旧
+            if r["snapshot"] and t not in snapshot_with_key:
+                # 纯整表替换快照无业务键，靠窗口结束日判新旧
                 self.assertEqual(r["business_key"], [])
+            if r["snapshot"] and t in snapshot_with_key:
+                self.assertTrue(r["business_key"], "当日快照应有行级主键：%s" % t)
 
     def test_excluded_tables_keep_reason(self):
         rules = load_rules(REAL_RULES)
@@ -45,8 +48,11 @@ class TestRulesIntegrity(unittest.TestCase):
 
     def test_snapshot_table_declared(self):
         rules = load_rules(REAL_RULES)
-        self.assertEqual([t for t, r in rules["tables"].items() if r["snapshot"]],
-                         ["商品流量_近30天"])
+        reg = REG.load_registry(REAL_REG)
+        snaps = sorted(t for t, r in rules["tables"].items() if r["snapshot"])
+        reg_snaps = sorted(t["table"] for t in reg["tables"] if t["type"] == "snapshot")
+        # 清洗规则与注册表的快照表完全一致
+        self.assertEqual(snaps, reg_snaps)
 
     def test_money_columns_declared_per_table_not_by_keyword(self):
         """`商品毛利率` 这类名字带「金额/率」但不是金额的列不能进 money_cols。"""
