@@ -388,6 +388,7 @@ def run_collection(plan, config, *, collector=None, hist=None, ledger=None):
     离线自测可注入假采集器，**不因此放宽任何验收**。
     """
     C.validate_plan(plan)
+    config["business_today"] = plan["business_today"]   # 供适配器判定平台预填日
     if collector is None:
         from adapters import collect_task as collector       # 延迟导入，避免拉起浏览器依赖
     results = []

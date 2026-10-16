@@ -299,7 +299,18 @@ def _collect_shangou(task, config):
                                  (config.get("cdp_host"), config.get("cdp_port")))
 
     timeout_s = int(config.get("timeout_s", 180))
-    daily = not bool(task.get("business_date") and config.get("explicit_date"))
+    # daily 判定：任务日期=平台预填日（普通表 T-1，评价 T-2）才用平台预填；
+    # 历史缺口日必须定向回采，否则会被强制采成昨日、文件名覆盖（2026-10-16实测bug）。
+    from common import dates as _dd
+    T = config.get("business_today") or _dd.today_shanghai()
+    _off = -2 if task["table"] == "评价数据" else -1
+    preset_day = _dd.shift_iso(T, _off)
+    d = task["business_date"]
+    daily = (d == preset_day)
+    is_gen2 = task["table"] in SHANGOU_GEN2_TABLES
+    if not daily:
+        print("[shangou] 历史日回采 %s @ %s（设日期控件+日期校验双闸门）"
+              % (task["table"], _dd.to_compact(d)), flush=True)
     with sync_playwright() as pw:
         browser = sg.connect_browser(pw)
         page = sg.find_page(browser)
@@ -307,11 +318,10 @@ def _collect_shangou(task, config):
             return _result(task, C.S_BLOCKED,
                            error={"code": "LOGIN_REQUIRED",
                                   "detail": "闪购站点未登录：%s" % page.url})
-        d = task["business_date"]
         sg.set_target_date(d)          # 让 validate_file 按目标日期校验（兜底闸门）
         try:
-            # gen2 流量表定向回采：走 collect_one（roo「自定义日」，apply_date 读回确认）
-            if config.get("explicit_date") and task["table"] in SHANGOU_GEN2_TABLES:
+            # gen2 流量表历史日回采：走 collect_one（roo「自定义日」，apply_date 读回确认）
+            if (not daily) and is_gen2:
                 recent = sgc.make_download_sink(page, os.path.join(rdir, ".staging"))
                 res = sgc.collect_one(page, task["table"], d, rdir,
                                       timeout_s=timeout_s,
