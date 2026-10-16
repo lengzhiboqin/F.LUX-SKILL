@@ -294,6 +294,25 @@ cmd_sync() {
 
         # 提交并推送
         git add -A
+
+        # 【安全拦截网】防止容器 restore 旧代码后把旧代码/大数据库反向同步污染 git
+        # 触发场景：容器重建后 /runtime 是旧生产目录，若本脚本未先经 deploy 就裸跑，
+        # 会把旧代码、flux.db 提交。这里在提交前强制拦截。
+        STAGED=$(git diff --cached --name-only)
+        if echo "$STAGED" | grep -qE '\.(db|db-wal|db-shm)$|/_data/'; then
+          echo "   🛑 安全拦截：暂存区含数据库/_data 文件，已中止本次提交（生产目录可能是restore旧代码，请先跑 deploy_skills.sh）"
+          echo "$STAGED" | grep -E '\.(db|db-wal|db-shm)$|/_data/' | head -5
+          git reset -q
+          git checkout main 2>/dev/null || true
+          continue
+        fi
+        if ! grep -qE '^_data/' .gitignore 2>/dev/null; then
+          echo "   🛑 安全拦截：当前 .gitignore 缺少 _data/ 规则，已中止（避免误提交本地数据）"
+          git reset -q
+          git checkout main 2>/dev/null || true
+          continue
+        fi
+
         if ! git diff --cached --quiet; then
           git commit -m "sync: 更新 $skill ($(date '+%Y-%m-%d %H:%M'))"
           local push_output
