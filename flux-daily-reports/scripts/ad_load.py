@@ -149,6 +149,9 @@ def main():
 
     g_day = make_group("f_门店推广日效果", DAY_COLS, day_rows, DAY_KEY, False, source_files)
     g_today = make_group("f_门店推广今日实时", TODAY_COLS, today_rows, TODAY_KEY, True, source_files)
+    # 快照组 business_date 必须取 run_day，否则被 db._write_snapshot 判「比库内更旧」拦截
+    g_day["business_date"] = args.run_day
+    g_today["business_date"] = args.run_day
 
     batch_id = "AD%s-%s" % (args.run_day.replace("-", ""),
                             time.strftime("%H%M%S"))
