@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>【客户称呼】第一次见面功课 · 由点及面建立信任</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23203832'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%23b9823a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Serif+SC:wght@600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap">
+<style>
+  :root{
+    --ink:#2a2622; --paper:#f5f1e8; --paper-2:#ede6d8;
+    --green:#203832; --green-2:#2c4a42; --amber:#b9823a;
+    --amber-soft:#f3e6d2; --line:#ddd2bf; --muted:#7a7063; --red:#9c4a3a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--paper);color:var(--ink);font-family:'Noto Sans SC',system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;font-size:15px;line-height:1.78;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:860px;margin:0 auto;padding:0 18px 80px;}
+
+  header{background:var(--green);color:#f3ede0;padding:32px 22px 26px;}
+  header .inner{max-width:860px;margin:0 auto;}
+  header .kicker{font-size:12.5px;letter-spacing:.18em;color:#c9a86a;margin-bottom:10px;}
+  header h1{font-family:'Noto Serif SC',serif;font-weight:900;font-size:26px;line-height:1.42;}
+  header .sub{margin-top:10px;font-size:14px;color:#d8cdb8;}
+  .facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;}
+  .fact{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:6px;padding:6px 12px;font-size:13px;}
+  .fact b{color:#e6c98a;font-weight:700;}
+
+  section{margin-top:36px;}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:16px;border-bottom:2px solid var(--green);padding-bottom:8px;}
+  .sec-no{font-family:'Noto Serif SC',serif;font-weight:900;font-size:21px;color:var(--amber);}
+  .sec-head h2{font-family:'Noto Serif SC',serif;font-weight:700;font-size:19px;color:var(--green);}
+  .sec-head .tip{margin-left:auto;font-size:12.5px;color:var(--muted);}
+
+  .aim{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px 20px;}
+  .aim .big{font-family:'Noto Serif SC',serif;font-size:20px;font-weight:900;color:var(--green);text-align:center;margin-bottom:14px;}
+  .donts{display:flex;flex-direction:column;gap:10px;}
+  .dont{display:flex;gap:12px;align-items:flex-start;background:#f7ece8;border-left:3px solid var(--red);border-radius:0 8px 8px 0;padding:11px 14px;}
+  .dont .x{color:var(--red);font-weight:700;flex:0 0 auto;}
+  .dont p{font-size:14px;}
+
+  .legs{display:flex;flex-direction:column;gap:12px;}
+  .leg{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px;}
+  .leg h3{font-size:16px;color:var(--green);margin-bottom:8px;}
+  .leg ul{margin-left:18px;font-size:14px;color:#3a342e;}
+  .leg li{margin-bottom:5px;}
+  @media(min-width:680px){.legs{display:grid;grid-template-columns:1fr 1fr;}}
+
+  .ring{display:grid;grid-template-columns:40px 1fr;gap:0;margin-bottom:14px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  .ring .num{background:var(--green);color:#fff;font-family:'Noto Serif SC',serif;font-weight:900;font-size:18px;display:flex;align-items:center;justify-content:center;}
+  .ring .rc{padding:15px 17px;min-width:0;}
+  .ring h3{font-size:16px;color:var(--green);margin-bottom:5px;}
+  .ring .point{font-size:13.5px;color:var(--muted);margin-bottom:9px;}
+  .say{background:var(--amber-soft);border-radius:8px;padding:11px 14px;font-size:14.5px;color:#3d3120;line-height:1.85;margin-top:10px;}
+  .say::before{content:"可以这么说：";display:block;font-weight:700;color:#8a5e28;font-size:13px;margin-bottom:3px;}
+
+  .mini{display:grid;grid-template-columns:1fr;gap:10px;margin:10px 0;}
+  .mini div{border-radius:8px;padding:10px 13px;font-size:13.5px;}
+  .mini .a{background:#e6ede9;border-left:3px solid var(--green);}
+  .mini .b{background:var(--amber-soft);border-left:3px solid var(--amber);}
+  .mini b{display:block;margin-bottom:4px;font-size:13.5px;}
+  .mini .a b{color:var(--green);}
+  .mini .b b{color:#8a5e28;}
+  @media(min-width:680px){.mini{grid-template-columns:1fr 1fr;}}
+
+  .map{display:grid;grid-template-columns:1fr;gap:8px;margin:4px 0 16px;}
+  .map .layer{background:#fff;border:1px solid var(--line);border-top:3px solid var(--green);border-radius:8px;padding:11px 14px;font-size:13.5px;}
+  .map .layer b{color:var(--green);display:block;margin-bottom:3px;font-size:14px;}
+  .map .layer span{color:var(--muted);font-size:13px;}
+  .map .arrow{display:none;text-align:center;color:var(--amber);font-weight:900;}
+  @media(min-width:720px){.map{grid-template-columns:1fr 28px 1fr 28px 1fr;align-items:center;}.map .arrow{display:block;}}
+  .caselist{margin:10px 0;display:flex;flex-direction:column;gap:8px;}
+  .minicase{background:#f7f3ea;border:1px solid var(--line);border-radius:8px;padding:10px 13px;font-size:13.5px;color:#3a342e;}
+  .minicase b{color:var(--green);}
+  .minicase .m{color:var(--muted);font-size:12.5px;}
+
+  .flow{display:flex;flex-direction:column;gap:10px;}
+  .fstep{display:grid;grid-template-columns:64px 1fr;gap:14px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 18px;}
+  .fstep .t{font-family:'Noto Serif SC',serif;font-weight:900;color:var(--amber);font-size:15px;}
+  .fstep h3{font-size:15.5px;color:var(--green);}
+  .fstep p{font-size:13.5px;color:#4a443c;}
+
+  .qa{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:12px;}
+  .qa .q{font-size:15.5px;font-weight:700;color:var(--green);margin-bottom:8px;}
+  .qa .q::before{content:"问 ";color:var(--amber);font-family:'Noto Serif SC',serif;}
+  .qa .a{font-size:14.5px;color:#332e29;line-height:1.85;}
+  .qa .a::before{content:"参考说法：";display:block;font-weight:700;color:#8a5e28;font-size:13px;margin-bottom:3px;}
+  .qa .note{font-size:12.5px;color:var(--muted);margin-top:8px;}
+
+  .chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{background:#e6ede9;border:1px solid #cdd9d3;border-radius:20px;padding:7px 14px;font-size:13.5px;color:var(--green-2);}
+  .redbox{background:#f7ece8;border:1px solid #e2c3b8;border-radius:10px;padding:16px 18px;}
+  .redbox h3{color:var(--red);font-size:15.5px;margin-bottom:8px;}
+  .redbox li{margin-left:18px;font-size:14px;color:#5a3a32;margin-bottom:5px;}
+
+  .vs{display:grid;grid-template-columns:1fr;gap:12px;margin:14px 0;}
+  .vscol{border:1px solid var(--line);border-radius:10px;padding:15px 17px;background:#fff;}
+  .vscol h3{font-size:15.5px;margin-bottom:10px;}
+  .vscol.boss h3{color:#8a5e28;}
+  .vscol.me h3{color:var(--green);}
+  .vscol .sub{font-size:12.5px;color:var(--muted);margin-bottom:8px;}
+  .vscol ul{margin-left:18px;font-size:13.5px;}
+  .vscol li{margin-bottom:6px;color:#3a342e;}
+  .vscol .tagline{font-weight:700;font-size:13px;margin:8px 0 4px;}
+  .vscol.boss .tagline{color:#8a5e28;}
+  .vscol.me .tagline{color:var(--green);}
+  .strategy{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-top:12px;}
+  .strategy h3{font-size:15.5px;color:var(--green);margin-bottom:10px;}
+  .strategy li{margin-left:18px;font-size:14px;margin-bottom:7px;color:#3a342e;}
+  @media(min-width:720px){.vs{grid-template-columns:1fr 1fr;}}
+
+  footer{margin-top:42px;text-align:center;font-size:12.5px;color:var(--muted);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="inner">
+    <div class="kicker">第一次见面 · 销售功课（建立信任，不逼单）</div>
+    <h1>由点及面聊行业：先立认知，再答问题，怎么做往后放</h1>
+    <div class="sub">对象：【城市 · 客户称呼/身份，已有资源】　|　阶段：【他在了解观望，第一次接触】</div>
+    <div class="facts">
+      <div class="fact">目标：<b>让人觉得你有行业沉淀</b></div>
+      <div class="fact">讲法：<b>专业词配一句人话，案例只说量级</b></div>
+      <div class="fact">你的位置：<b>懂线上/懂方法的朋友，不是推销员</b></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- 00 定位 -->
+  <section>
+    <div class="sec-head"><span class="sec-no">00</span><h2>先把这趟的目标收窄</h2><span class="tip">目标越小，越显得从容</span></div>
+    <div class="aim">
+      <div class="big">这一次不卖方案，只让人记住你懂行、稳</div>
+      <div class="donts">
+        <div class="dont"><span class="x">不</span><p>【不主动劝他自建，也不说对手/加盟不好，一劝就变回推销员。】</p></div>
+        <div class="dont"><span class="x">不</span><p>【不报价、不谈分成、不承诺单量和回本时间，第一次谈钱就变味。】</p></div>
+        <div class="dont"><span class="x">不</span><p>【不讲上架、报名这类碎操作，那是合作之后的事。】</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 01 两条腿 -->
+  <section>
+    <div class="sec-head"><span class="sec-no">01</span><h2>信任从哪来：两条腿走路</h2></div>
+    <div class="legs">
+      <div class="leg">
+        <h3>第一条：人稳（看不见，但压人）</h3>
+        <ul>
+          <li>别人说完再开口，停一两秒，不抢话、不打断。</li>
+          <li>问到不会的，直说回去核实再给，不硬编、不硬撑。</li>
+          <li>全场不说"保证、一定、稳赚"这类词。</li>
+          <li>在场任何人的想法先接住，不当面驳。</li>
+        </ul>
+      </div>
+      <div class="leg">
+        <h3>第二条：讲认知，不讲碎活</h3>
+        <ul>
+          <li>聊本质、聊规律、聊这个行当现在谁在跑。</li>
+          <li>具体怎么上架、怎么报名先藏着，讲出来像急着卖活。</li>
+          <li>观点要有自己的判断，别两边都说、和稀泥。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 六环主线 -->
+  <section>
+    <div class="sec-head"><span class="sec-no">02</span><h2>由点及面的叙述主线</h2><span class="tip">先背熟三层主线，再一环环往上带</span></div>
+
+    <div class="map">
+      <div class="layer"><b>① 本质 · 零售这本账（不变）</b><span>人货场；毛利结构、复购率、成本——所有零售同一本账</span></div>
+      <div class="arrow">→</div>
+      <div class="layer"><b>② 壳 · 电商算法场（变的打法）</b><span>算法分发+活动位；选品命中率、动销率、库存周转天数、单均履约成本</span></div>
+      <div class="arrow">→</div>
+      <div class="layer"><b>③ 场景 · 应急即时（变的需求）</b><span>计划采购→现在就要；履约效率、有货率、短时间达</span></div>
+    </div>
+
+    <div class="ring">
+      <div class="num">1</div>
+      <div class="rc">
+        <h3>从他已经认可的事切入</h3>
+        <div class="point">别一上来讲大道理，先接微信/截图里聊过的资源，他顺着就听进去。</div>
+        <div class="say">【接上他已认可的资源，点出这在新渠道里是稀缺壁垒，多数人缺的恰恰是这块。】</div>
+      </div>
+    </div>
+
+    <div class="ring">
+      <div class="num">2</div>
+      <div class="rc">
+        <h3>第一层 · 本质：零售这本账没变（人货场 + 三笔账）</h3>
+        <div class="point">先立不变的底层：这层不分线上线下，跟开超市同一本账。</div>
+        <div class="mini">
+          <div class="a"><b>人货场，百年没变</b>【人=需求，货=供给，场=交易发生地，所有零售都一样。】</div>
+          <div class="b"><b>赚钱的三笔账</b>【毛利结构（单笔赚多少）、复购率（老客回头）、成本（进货/获客/履约）。】</div>
+        </div>
+        <div class="say">【本质判断：所有零售都是这三笔账的效率，变的只是后面两层。】</div>
+      </div>
+    </div>
+
+    <div class="ring">
+      <div class="num">3</div>
+      <div class="rc">
+        <h3>第二层 · 壳：场变成电商/算法场，靠算法把货推到人面前</h3>
+        <div class="point">变的是场：从地段人流变成平台算法分发，这层有自己的运营指标。</div>
+        <div class="mini">
+          <div class="a"><b>老场：赌位置</b>【赌铺面地段和路过的人，靠自然人流，看坪效、到店客流。】</div>
+          <div class="b"><b>新场：算法分发</b>【平台算法+搜索+活动位，把货推给3公里内有需求的人。】</div>
+        </div>
+        <div class="say">【线上运营指标：选品命中率、动销率、库存周转天数、单均履约成本；毛利复购是第一层的账，这里只优化不另起一套。】</div>
+      </div>
+    </div>
+
+    <div class="ring">
+      <div class="num">4</div>
+      <div class="rc">
+        <h3>第三层 · 场景：卖的是应急需求，核心拼履约效率</h3>
+        <div class="point">计划采购和应急即时是两种需求，新渠道吃后者；前置仓就是为它盖的。</div>
+        <div class="mini">
+          <div class="a"><b>计划采购（线下）</b>【有空、顺路、比价、囤货，对时效不敏感，看价格和齐全。】</div>
+          <div class="b"><b>应急即时（新渠道）</b>【现在就要、短时间内、临时缺，对价格不敏感，看快、近、此刻有没有货。】</div>
+        </div>
+        <div class="say">【总纲：零售本质（毛利/复购/成本）+ 电商壳（算法+运营指标）+ 应急场景（履约效率/有货/时效）；前置仓不吃地段红利，吃系统化周转。】</div>
+      </div>
+    </div>
+
+    <div class="ring">
+      <div class="num">5</div>
+      <div class="rc">
+        <h3>讲这个赛道谁在跑（行业案例体现沉淀）</h3>
+        <div class="point">每类只说公开量级，不背精确数；重点讲它为什么做得起来，不是报家底。</div>
+        <div class="caselist">
+          <div class="minicase"><b>【案例一 · 类型】</b><br>【背景一句：谁、哪年、什么模式、公开量级。】<span class="m"><b>做起来的核心原因：</b>【它靠什么绕开行业最难的一环。】</span></div>
+          <div class="minicase"><b>【案例二 · 类型】</b><br>【背景一句。】<span class="m"><b>做起来的核心原因：</b>【一句判断。】</span></div>
+          <div class="minicase"><b>【案例三 · 类型】</b><br>【背景一句。】<span class="m"><b>做起来的核心原因：</b>【一句判断。】</span></div>
+        </div>
+        <div class="say">【分几类玩家讲，路径不同，终局都回到同一件事，先盘自己手里的牌。】</div>
+      </div>
+    </div>
+
+    <div class="ring">
+      <div class="num">6</div>
+      <div class="rc">
+        <h3>落到客户的品类：机会和门槛都讲，再落回他身上停住</h3>
+        <div class="point">主动讲难处才不像画饼；讲到这就收，别急着说你能干什么。</div>
+        <div class="mini">
+          <div class="a"><b>机会</b>【场景、客单、毛利、复购、耐损耗程度。】</div>
+          <div class="b"><b>门槛</b>【合规、价格体系不冲老盘、动销/临期/季节性。】</div>
+        </div>
+        <div class="say">【点出他手里最稀缺的供给资产，缺的只是新渠道这段怎么接；收在"看实际情况，今天先聊框架"。】</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 节奏 -->
+  <section>
+    <div class="sec-head"><span class="sec-no">03</span><h2>整场怎么排顺序</h2></div>
+    <div class="flow">
+      <div class="fstep"><div class="t">先听</div><div><h3>暖场，让在场人先讲</h3><p>多问他做这行的经历和为什么想做新渠道，自己少说，把场子让出来。</p></div></div>
+      <div class="fstep"><div class="t">再讲</div><div><h3>由点及面把认知聊出来</h3><p>从资源切入，先讲本质、再讲区别、用案例收尾，像聊天不像演讲，一段段来。</p></div></div>
+      <div class="fstep"><div class="t">后答</div><div><h3>进入他们提问，逐个接</h3><p>答不准的记下来，说回去核实，不硬答。</p></div></div>
+      <div class="fstep"><div class="t">收口</div><div><h3>怎么做被追问才点一句</h3><p>"具体怎么落要看实际，我回去理清楚再跟您对。"不展开。</p></div></div>
+    </div>
+  </section>
+
+  <!-- 04 问答 -->
+  <section>
+    <div class="sec-head"><span class="sec-no">04</span><h2>大概率会被问到的问题</h2><span class="tip">说法是参考，按自己口气改，别背</span></div>
+    <div class="qa">
+      <div class="q">【这行到底能不能赚？】</div>
+      <div class="a">【赛道成立但不躺赚，取决于哪几件事，不替他拍结果，理性是先小范围验证。】</div>
+    </div>
+    <div class="qa">
+      <div class="q">【自己做 / 加盟 / 自建，哪个好？】</div>
+      <div class="a">【没绝对答案看手里的牌，各有取舍，今天不定，回去摸清再对比。】</div>
+    </div>
+    <div class="qa">
+      <div class="q">【大概投多少？多久回本？】</div>
+      <div class="a">【现场不报，报了是拍脑袋，回去按实际算结构，回本看动销。】</div>
+    </div>
+    <div class="qa">
+      <div class="q">【你们具体做什么？怎么收费？】</div>
+      <div class="a">【今天先不聊钱，只讲你负责哪段，合作等他判断值得做再谈。】</div>
+      <div class="note">第一次被问收费，轻轻挡回，不报价。</div>
+    </div>
+    <div class="qa">
+      <div class="q">【会不会乱价，冲了我现在的盘子？】</div>
+      <div class="a">【先承认顾虑合理，专做增量、价格体系错开，具体边界要看他现有体系。】</div>
+    </div>
+    <div class="qa">
+      <div class="q">【你们做过我们这行吗？】</div>
+      <div class="a">【没有就直说，方法换品类是通的，让他自己判断，不编案例。】</div>
+    </div>
+  </section>
+
+  <!-- 05 博弈 -->
+  <section>
+    <div class="sec-head"><span class="sec-no">05</span><h2>双方商业合作的博弈（自己心里算，不说出口）</h2><span class="tip">先看清两边的账，再定怎么出牌</span></div>
+    <div class="vs">
+      <div class="vscol boss">
+        <h3>客户视角：他在算什么</h3>
+        <div class="sub">他愿不愿意合作，取决于这笔账划不划算、安不安全</div>
+        <div class="tagline">对他有利的地方</div>
+        <ul>
+          <li>【补上自己不懂的那段，不用自己交学费摸索。】</li>
+          <li>【现有资产多一个新渠道出口，被放大。】</li>
+          <li>【轻资产，不用专门养团队。】</li>
+          <li>【有人盯数据盯活动，少踩试错的坑。】</li>
+        </ul>
+        <div class="tagline">他的顾虑和隐性算盘</div>
+        <ul>
+          <li>【要付费，多一笔成本。】</li>
+          <li>【担心效果不可控，钱花了没回响。】</li>
+          <li>【怕新渠道乱价，冲击原有价格体系和大盘。】</li>
+          <li>【交出后台数据后自己被动。】</li>
+          <li>【隐性算盘：先让你搭好跑通，后面自己接手。】</li>
+        </ul>
+      </div>
+      <div class="vscol me">
+        <h3>你的视角：你在算什么</h3>
+        <div class="sub">想清楚自己要什么、风险在哪，才不会被带着走</div>
+        <div class="tagline">对你有利的地方</div>
+        <ul>
+          <li>【绑定有资源的合作方，比陌生拓客稳。】</li>
+          <li>【跑通后沉淀可复制案例。】</li>
+          <li>【不垫资不压货，轻介入。】</li>
+        </ul>
+        <div class="tagline">你的风险点</div>
+        <ul>
+          <li>【不懂该品类，货盘/定价说错易露怯。】</li>
+          <li>【前期重投入若按低价单店谈，收不回。】</li>
+          <li>【跑通后甲方容易自己接手甩开你。】</li>
+          <li>【效果受货/价/场地影响，不全在你，有背锅风险。】</li>
+        </ul>
+      </div>
+    </div>
+    <div class="strategy">
+      <h3>你的行动与表达策略</h3>
+      <ul>
+        <li><b>先给价值再谈条件：</b>回去先交一份本地商圈/竞品摸底，用成果换信任。</li>
+        <li><b>收费分层，别按单店低价打包：</b>基建期一次性收搭建费，运营期再按月费或提点，两段分开。</li>
+        <li><b>从可复制/区域视角谈，不按一个店卖完整基建。</b></li>
+        <li><b>边界提前讲清：</b>你对线上动作和结果负责，不背库存、不碰定价，写进协议。</li>
+        <li><b>顾虑前置：</b>主动把他没说出口的担心摆出来先给方案。</li>
+        <li><b>补位不替代：</b>让他始终有掌控感。</li>
+        <li><b>底牌留一半：</b>核心方法不一次交底。</li>
+        <li><b>节奏克制：</b>这次只建立认知，条件留到他主动问、认可你之后。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 06 小动作 -->
+  <section>
+    <div class="sec-head"><span class="sec-no">06</span><h2>让你显得稳的小动作</h2></div>
+    <div class="chips">
+      <span class="chip">听完停两秒再答</span>
+      <span class="chip">不会就说回去核实</span>
+      <span class="chip">专业词后跟一句人话解释</span>
+      <span class="chip">不抢话、不驳在场人</span>
+      <span class="chip">少说保证、一定</span>
+      <span class="chip">案例只说量级，不背精确数</span>
+      <span class="chip">被追方案就往"看实际情况"收</span>
+    </div>
+  </section>
+
+  <!-- 07 红线 -->
+  <section>
+    <div class="sec-head"><span class="sec-no">07</span><h2>这趟别碰的线</h2></div>
+    <div class="redbox">
+      <h3>守住这些，信任才守得住</h3>
+      <ul>
+        <li>不主动推自建，不踩加盟或对手品牌。</li>
+        <li>不报价、不谈分成、不承诺销量和回本。</li>
+        <li>不讲上架、报名这些碎操作。</li>
+        <li>不懂的品类不装懂，那是客户的强项，让给他讲。</li>
+        <li>不编案例、不编数字，企业自报 GMV 这类不当事实承诺引用。</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>内部面谈参考 · 案例数字均为公开资料口径，现场说量级即可，精确数据以官方最新披露为准</footer>
+
+</div>
+</body>
+</html>

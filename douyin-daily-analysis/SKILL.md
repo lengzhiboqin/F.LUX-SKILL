@@ -1,6 +1,6 @@
 ---
 name: douyin-daily-analysis
-description: 抖音账号「帮主出发啦」每日数据分析与内容策划工作流。自动登录抖音创作者后台采集数据（数据中心+内容管理），搜索抖音最近7天热门视频（5条多元化类型），基于热门视频二创生成5个选题推荐+详细分镜头脚本，按月份→日期子页面分层写入固定智能文档（拍摄策划+分镜头脚本），上传微盘备份，推送企微群消息简易版。当用户提到"抖音每日数据分析""帮主出发啦每日运营""抖音账号数据复盘""抖音内容策划""定时任务触发的抖音分析"，或需要分析抖音创作者后台数据、生成抖音拍摄策划和分镜头脚本、推送抖音运营群消息时使用。
+description: 抖音账号「帮主出发啦」每日数据分析与内容策划工作流。自动登录抖音创作者后台采集数据（数据中心+内容管理），搜索抖音最近7天热门视频（5条多元化类型），基于热门视频二创生成5个选题推荐+详细分镜头脚本，追加到固定智能文档（拍摄策划+分镜头脚本两个页面），上传微盘备份，推送企微群消息简易版。当用户提到"抖音每日数据分析""帮主出发啦每日运营""抖音账号数据复盘""抖音内容策划""定时任务触发的抖音分析"，或需要分析抖音创作者后台数据、生成抖音拍摄策划和分镜头脚本、推送抖音运营群消息时使用。
 ---
 
 # 抖音账号每日数据分析工作流（帮主出发啦）
@@ -8,8 +8,8 @@ description: 抖音账号「帮主出发啦」每日数据分析与内容策划�
 ## 核心原则
 - 数据必须真实，来自抖音创作者后台，禁止编造
 - 热门视频必须抖音网页版直搜，禁用通用搜索
-- 文档按月份→日期子页面分层归档，每天创建新的日期子页面，不追加到主索引页
-- 群消息必须在两个日期子页面都写入成功后推送
+- 所有内容追加到固定智能文档，不创建当日独立文档
+- 群消息必须在两个文档页面都追加完成后推送
 - 称呼用户为"老大"，实事求是不夸大
 
 ## 账号与配置
@@ -20,13 +20,10 @@ description: 抖音账号「帮主出发啦」每日数据分析与内容策划�
 - 数据中心：https://creator.douyin.com/creator-micro/data-center/operation
 - 内容管理：https://creator.douyin.com/creator-micro/content/manage
 - 固定文档docid：a1_ANsAG3j5ALUCNHCSGna7YQFWUc2cj_a
-- 拍摄策划索引页page_id：zyqjZU（只放日期链接索引，不放正文）
-- 分镜头脚本索引页page_id：6Ag4k9（只放日期链接索引，不放正文）
-- 拍摄策划月份页（2026年9月）page_id：l9Xca0
-- 分镜头脚本月份页（2026年9月脚本）page_id：Te8jLi
+- 拍摄策划page_id：zyqjZU
+- 分镜头脚本page_id：6Ag4k9
 - 微盘备份folder_id：fiz9h33ph3TDtaBh49IM7gM6KQNMg4bnhmvdGqkLr56_n8XNZS_MgI3gTZRYJ_aV3S8r83lOd3pb_1M1Z9Wdae6A
 - wecom-cli路径：/home/user/.npm-global/bin/wecom-cli（必须用1.2.1新版本）
-- 注意：智能文档全局不允许同名页面，分镜头脚本的日期/月份页面必须加"脚本"后缀
 
 ---
 
@@ -118,10 +115,9 @@ description: 抖音账号「帮主出发啦」每日数据分析与内容策划�
 6. 时长控制在13-30秒，不要超过30秒（账号历史验证超30秒完播率大幅下降）
 7. 前3秒必须有钩子，最后一帧必须有具体互动引导
 
-### Step 7：创建日期子页面写入内容 + 上传微盘备份
+### Step 7：追加固定文档 + 上传微盘备份
 
 **必须使用wecom-cli新版本路径：/home/user/.npm-global/bin/wecom-cli**
-**文档已按月份→日期分层，每天创建新的日期子页面，不再追加到主索引页。**
 
 1. 检查wecom-cli授权状态：
 ```bash
@@ -129,46 +125,19 @@ description: 抖音账号「帮主出发啦」每日数据分析与内容策划�
 ```
 输出`authorized`才可继续。
 
-2. 获取文档当前页面结构，确认月份页面是否存在：
+2. 追加拍摄策划到固定文档「每日拍摄策划」页面：
 ```bash
-/home/user/.npm-global/bin/wecom-cli smartpage pages get --json '{"docid":"a1_ANsAG3j5ALUCNHCSGna7YQFWUc2cj_a"}'
-```
-从返回的pages数组中查找：
-- 拍摄策划月份页：标题为"YYYY年M月"（如"2026年9月"），parent_id为zyqjZU
-- 分镜头脚本月份页：标题为"YYYY年M月脚本"（如"2026年9月脚本"），parent_id为6Ag4k9
-
-3. 如果月份页面不存在，创建月份页面：
-```bash
-# 拍摄策划月份页
-/home/user/.npm-global/bin/wecom-cli smartpage pages update --json '{"docid":"a1_ANsAG3j5ALUCNHCSGna7YQFWUc2cj_a","create_page":{"page_name":"YYYY年M月","parent_page_id":"zyqjZU","index":0}}'
-# 分镜头脚本月份页（必须加"脚本"后缀，智能文档全局不允许同名页面）
-/home/user/.npm-global/bin/wecom-cli smartpage pages update --json '{"docid":"a1_ANsAG3j5ALUCNHCSGna7YQFWUc2cj_a","create_page":{"page_name":"YYYY年M月脚本","parent_page_id":"6Ag4k9","index":0}}'
-```
-记录返回的page_id。
-
-4. 在月份页面下创建当天的日期子页面：
-```bash
-# 拍摄策划日期页（如"09月30日"）
-/home/user/.npm-global/bin/wecom-cli smartpage pages update --json '{"docid":"a1_ANsAG3j5ALUCNHCSGna7YQFWUc2cj_a","create_page":{"page_name":"MM月DD日","parent_page_id":"<拍摄策划月份页page_id>","index":0}}'
-# 分镜头脚本日期页（如"09月30日脚本"，必须加"脚本"后缀）
-/home/user/.npm-global/bin/wecom-cli smartpage pages update --json '{"docid":"a1_ANsAG3j5ALUCNHCSGna7YQFWUc2cj_a","create_page":{"page_name":"MM月DD日脚本","parent_page_id":"<分镜头脚本月份页page_id>","index":0}}'
-```
-记录返回的两个日期子页面page_id。
-
-5. 用overwrite把内容写入日期子页面（不是append，因为是新页面）：
-```bash
-# 拍摄策划
-/home/user/.npm-global/bin/wecom-cli smartpage pages overwrite --json '{"docid":"a1_ANsAG3j5ALUCNHCSGna7YQFWUc2cj_a","page_id":"<拍摄策划日期页page_id>","content_type":"markdown","file_path":"<拍摄策划文件路径>"}'
-# 分镜头脚本
-/home/user/.npm-global/bin/wecom-cli smartpage pages overwrite --json '{"docid":"a1_ANsAG3j5ALUCNHCSGna7YQFWUc2cj_a","page_id":"<分镜头脚本日期页page_id>","content_type":"markdown","file_path":"<分镜头脚本文件路径>"}'
+/home/user/.npm-global/bin/wecom-cli smartpage pages append --json '{"docid":"a1_ANsAG3j5ALUCNHCSGna7YQFWUc2cj_a","page_id":"zyqjZU","content_type":"markdown","file_path":"<拍摄策划文件路径>"}'
 ```
 成功标志：status: success, errcode: 0
 
-6. 更新两个索引页，在日期列表末尾添加当天的链接（用append追加一行）：
-- 拍摄策划索引页（page_id: zyqjZU）追加：`- [MM月DD日](https://doc.weixin.qq.com/smartpage/a1_ANsAG3j5ALUCNHCSGna7YQFWUc2cj_a?p=<拍摄策划日期页page_id>)`
-- 分镜头脚本索引页（page_id: 6Ag4k9）追加：`- [MM月DD日脚本](https://doc.weixin.qq.com/smartpage/a1_ANsAG3j5ALUCNHCSGna7YQFWUc2cj_a?p=<分镜头脚本日期页page_id>)`
+3. 追加分镜头脚本到固定文档「分镜头脚本」页面：
+```bash
+/home/user/.npm-global/bin/wecom-cli smartpage pages append --json '{"docid":"a1_ANsAG3j5ALUCNHCSGna7YQFWUc2cj_a","page_id":"6Ag4k9","content_type":"markdown","file_path":"<分镜头脚本文件路径>"}'
+```
+成功标志：status: success, errcode: 0
 
-7. 上传两个Markdown文件到微盘备份：
+4. 上传两个Markdown文件到微盘备份：
 ```bash
 /home/user/.npm-global/bin/wecom-cli disk files upload --json '{"folder_id":"fiz9h33ph3TDtaBh49IM7gM6KQNMg4bnhmvdGqkLr56_n8XNZS_MgI3gTZRYJ_aV3S8r83lOd3pb_1M1Z9Wdae6A","file_path":"<文件路径>"}'
 ```
@@ -176,7 +145,7 @@ description: 抖音账号「帮主出发啦」每日数据分析与内容策划�
 
 ### Step 8：推送企微群消息
 
-**必须在两个日期子页面都写入成功后推送。必须用python + urllib，不要用curl + %格式化（内容含"0%"会冲突）。**
+**必须在两个文档页面都追加成功后推送。必须用python + urllib，不要用curl + %格式化（内容含"0%"会冲突）。**
 
 1. 构造markdown内容（完整模板见 [references/output-templates.md](references/output-templates.md)）：
    - 标题：📊 抖音账号每日数据分析（YYYY年MM月DD日）
