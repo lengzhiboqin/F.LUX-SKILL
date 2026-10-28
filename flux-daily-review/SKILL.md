@@ -50,7 +50,7 @@ python3 <技能目录>/scripts/run_review.py \
 
 ### 5. 飞书上传
 
-将复盘报告上传到飞书云空间「F.LUX云端工作台/产出物/每日复盘/」文件夹（folder_token: Xtq9fVsTMlplCGdGp6ocXmixn0d），使用单独临时目录上传。
+将复盘报告上传到飞书云空间 `产出物/每日复盘/` 文件夹（folder_token: EkcJftWXClQ4lCduIrncmenUnNb），使用单独临时目录上传。
 
 ### 6. 企微通知
 
