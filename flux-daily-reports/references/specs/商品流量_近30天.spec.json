@@ -1,0 +1,117 @@
+{
+  "spec_version": "0.2",
+  "table_key": "商品流量_近30天",
+  "platform": "牵牛花",
+  "tenant": "芙乐（租户ID 1011047）",
+  "last_updated": "2026-10-14",
+  "confirmed_by": "AI 浏览器实测 queryTable（2026-10-13 凌晨）；downloadTable 导出路径 2026-10-14 下午就绪后实测通过（窗口正确、内容比对PASS）",
+
+  "1_页面入口": {
+    "url": "qnh.meituan.com 登录后按业务跳转，商品流量页路由 #/data/product/flow-performance",
+    "manual_steps": [
+      "左侧菜单：数据 → 商品 → 商品流量（页面『商品流量』）",
+      "顶部范围选择器：点『按总部』下拉 → 选『按总部·全部门店』（品牌级，最关键的一步，切勿停在『按门店·某店』）",
+      "顶部周期选择器：选『近30天』（页面会自动填 开始日期=T-30、结束日期=T-1）",
+      "流量来源：全部（sourceType=1；店内=2、店外=3）；类目：全部",
+      "数据就绪后（页面横幅『昨日数据预计14点更新』，即 ≥14:00 之后）点右上角『导出』",
+      "在『下载中心/任务中心』等任务完成后下载，文件名形如：导出商品流量分析{导出日YYYYMMDD}_{开始YYYYMMDD}-{结束YYYYMMDD}.xlsx"
+    ]
+  },
+
+  "2_机器接口": {
+    "query_api": {
+      "method": "POST",
+      "path": "/goldengateway/empower/component/show/queryTable",
+      "status": "confirmed",
+      "headers": {
+        "Content-Type": "application/json",
+        "M-APPKEY": "fe_recofesacm",
+        "Accept": "application/json, text/plain, */*",
+        "qnhReferrer": "/data/product/flow-performance"
+      }
+    },
+    "download_api": {
+      "method": "POST",
+      "path": "/goldengateway/empower/component/show/downloadTable",
+      "script_also_uses": "/goldengateway/empower/complexModule/downloadTable",
+      "status": "confirmed——2026-10-14 16:30 就绪后真实提交，返回任务名 导出商品流量分析20261014_20260914-20261013，窗口与请求一致、内容比对 PASS",
+      "viewCode": "goods_flow_analysis_goods_list"
+    },
+    "viewCode": "goods_flow_analysis_goods_list"
+  },
+
+  "3_范围与粒度编码": {
+    "status": "confirmed",
+    "grain": "品牌整体·商品SPU级（全部门店聚合），不是门店级",
+    "queryType": {"1": "按总部·全部门店（品牌聚合，body 不含 poiIds）", "2": "按城市", "3": "按门店·单店（必须同时带 poiIds=[门店ID]）"},
+    "dateType": {"c": "周期（近30天需配合 _realDateType=30）", "d": "按日"},
+    "sourceType": {"1": "全部", "2": "店内", "3": "店外"},
+    "fixed_params": {"categoryType": "2", "firstCategoryIds": [], "secondCategoryIds": [], "thirdCategoryIds": []},
+    "品牌全部门店请求体_已确认": {
+      "viewCode": "goods_flow_analysis_goods_list",
+      "param": {"page": 1, "pageSize": 10, "categoryType": "2", "sourceType": "1", "startDate": "20260913", "endDate": "20261012", "dateType": "c", "queryType": "1", "_realDateType": "30", "firstCategoryIds": [], "secondCategoryIds": [], "thirdCategoryIds": [], "order": ""}
+    },
+    "关键事实": "qt=1 时 poiIds 不生效（传任意店仍返回全部门店）；会话停留在单店上下文也不影响 qt=1 结果。脚本现有配置 qt=1、不带 poiIds，范围正确。"
+  },
+
+  "4_窗口与就绪规则": {
+    "status": "confirmed",
+    "窗口": "近30天滚动快照，开始=T-30，结束=T-1（以昨天为窗口结束日）",
+    "就绪时点": "页面横幅：昨日数据预计 14:00 更新。早于该时点，昨日近30天聚合快照可能未就绪",
+    "平台静默行为": "数据未就绪时平台不报错，而是把窗口结束日回退到最新完整日（实测：请求 09-12~10-11，实际任务名 09-11~10-10）",
+    "历史稀疏化": "平台仅对『当前最新窗口』返回全量明细；窗口结束日早于最新完整日（历史窗口）时，全部门店数据被稀疏化：结束日10-10=1537商品/43683曝光、10-11=1740/53155、当前10-12=3003/1676665。同店当前窗口数百商品，历史窗口仅数十。",
+    "采集结论": "该表必须在每日 ≥14:05 数据就绪后采集（从早 08:30 主批次剥离为晚批次）。脚本侧双保险：① run_goods_flow_ready 未就绪时等待到 14:05 后自动重采（--wait-ready）；② 内容比对门 verify_file 拦截稀疏件（窗口结束日/曝光量级/环比断崖），不通过拒绝入库。"
+  },
+
+  "5_字段释义": {
+    "header_rows": 3,
+    "total_cols": 30,
+    "结构": "前12列为商品信息维度（index 0-11），其后6个指标各占3列（本期值、环比上期、环比波动）",
+    "维度列": [
+      {"index": 0, "name": "商品名称", "note": "导出后为商品标题"},
+      {"index": 1, "name": "SPU", "note": "长编号，必须按字符串保真，禁止浮点"},
+      {"index": 2, "name": "店内分类"}, {"index": 3, "name": "店内一级分类"}, {"index": 4, "name": "店内二级分类"},
+      {"index": 5, "name": "商品类目"}, {"index": 6, "name": "商品一级类目"}, {"index": 7, "name": "商品二级类目"},
+      {"index": 8, "name": "美团渠道类目"}, {"index": 9, "name": "美团渠道一级类目"}, {"index": 10, "name": "美团渠道二级类目"}, {"index": 11, "name": "美团渠道三级类目"}
+    ],
+    "指标列": [
+      {"indicCode": "view_uv", "col_index": 12, "name": "商品曝光人数", "unit": "人", "方向": "越大越好", "status": "confirmed"},
+      {"indicCode": "click_uv", "col_index": 15, "name": "商品点击人数", "unit": "人", "方向": "越大越好", "status": "confirmed"},
+      {"indicCode": "ord_uv_gmv", "col_index": 18, "name": "下单人数", "unit": "人", "方向": "越大越好", "status": "confirmed", "note": "口径=商品维度的下单人数：每个商品被多少人下单，再对所有商品求和。一个订单含多个商品，会在每个商品各计1，故约为订单数的3倍（10-14窗口12043 vs 有效订单约4000），不能当订单数用。字段名带 gmv 但页面口径为下单人数，非金额。"},
+      {"indicCode": "view_click_rate", "col_index": 21, "name": "点击转化率", "unit": "%", "口径": "点击/曝光", "status": "待与metrics.json核对"},
+      {"indicCode": "click_ord_rate", "col_index": 24, "name": "下单转化率", "unit": "%", "口径": "下单/点击", "status": "待与metrics.json核对"},
+      {"indicCode": "view_ord_rate", "col_index": 27, "name": "商品转化率", "unit": "%", "口径": "下单/曝光", "status": "待与metrics.json核对"}
+    ],
+    "汇总行": "第一列值为『汇总』（其紧随的维度列显示 -1 为正常占位），指标列为品牌全门店汇总；明细查询必须排除该汇总行"
+  },
+
+  "6_采集验收契约": {
+    "gate_1_窗口一致性": "下载后解析平台任务名窗口，结束日必须等于请求结束日(T-1)；不一致 → 判定数据未就绪，拒绝入库并延后重采",
+    "gate_2_全量合理性": "全部门店汇总曝光/商品数与上一快照环比，断崖式下跌（建议阈值环比<-50%）→ 判定残缺快照，拒绝入库",
+    "gate_3_范围汇总核对": "汇总曝光应与 queryTable 同窗口全部门店值一致（量级十万~百万级，非数万）",
+    "gate_4_行列结构": "header_rows=3，总列数=30，含汇总行且指标列非空",
+    "manifest_must_record": ["提交请求体完整 JSON", "平台返回任务名实际窗口", "任务ID", "文件 sha256", "采集时刻（精确到时分）"]
+  },
+
+  "7_golden基准": {
+    "path": "references/golden/商品流量_近30天/导出商品流量分析_20260912-20261011_品牌全门店.xlsx",
+    "sha256": "6c493ccde8009b49967acbe0798bcba2647cedfad39eacc99b93fe1f95fe8d00",
+    "goods_rows": 3003,
+    "fingerprint": {"商品曝光人数": 1676665, "商品点击人数": 63618, "下单人数": 12136},
+    "用途": "全量形态与量级参照（滚动窗口每日数值变化，不固定行数；用形态/量级+环比连续性比对，不用固定指纹）"
+  },
+
+  "8_待确认项": [
+    "近30天聚合快照的精确就绪时点（实测 14:00 后就绪，建议固定 14:05 采集；个别天是否更晚待观察）",
+    "调度落地：需把商品流量从 08:30 主批次拆出，新增 14:05 后晚批次，或在主批次用 --wait-ready 自动等待",
+    "内容比对门 min_exposure=10万 阈值是否随品牌增长校准（当前全量约 166 万）"
+  ],
+  "9_下单口径核查结论": {
+    "核查日期": "2026-10-14",
+    "商品流量_下单人数_30天": 12043,
+    "经营指标_有效订单数_30天": 3932,
+    "经营指标_下单顾客数_30天": 4039,
+    "比值": "下单人数约为有效订单数的 3.0 倍",
+    "结论": "非错误。商品流量『下单人数』为商品维度求和（一单多品重复计），订单数为去重口径；诊断系统不得把该列当订单数。"
+  }
+}

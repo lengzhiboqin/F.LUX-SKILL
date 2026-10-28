@@ -1,0 +1,66 @@
+```html type="renderer"
+<html style="margin:0;padding:0;">
+<title>商品流量卡点根因与可核实机制</title>
+<div style="width:100%;box-sizing:border-box;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:#f5f6f8;color:#1f2329;padding:14px 12px;font-size:14px;line-height:1.5;">
+
+  <div style="font-size:18px;font-weight:700;margin-bottom:4px;">卡点3 · 商品流量近30天</div>
+  <div style="display:inline-block;background:#fff3e0;color:#c45600;border:1px solid #ffcc80;border-radius:6px;padding:4px 10px;font-size:13px;font-weight:600;margin-bottom:12px;">
+    重大更正：不是「采成单店」，采集范围一直是全门店；真因是「采集太早 + 窗口被平台前移」
+  </div>
+
+  <!-- 对比 -->
+  <div style="font-weight:700;margin:6px 0 8px;">一、两份文件对比（都是全部门店）</div>
+  <div style="display:flex;flex-wrap:wrap;gap:10px;">
+    <div style="flex:1;min-width:200px;background:#fdecec;border:1px solid #f3b4b4;border-radius:8px;padding:10px;">
+      <div style="font-weight:700;color:#c0392b;">错误采集件（脚本）</div>
+      <div style="font-size:12px;color:#8a5a5a;margin:2px 0 6px;">窗口结束日 10-10（被前移1天）</div>
+      <div style="font-size:13px;">商品数：<b>1,537</b></div>
+      <div style="font-size:13px;">曝光人数：<b>43,683</b></div>
+      <div style="font-size:13px;">点击人数：<b>1,421</b></div>
+      <div style="font-size:13px;">下单人数：<b>261</b></div>
+    </div>
+    <div style="flex:1;min-width:200px;background:#eaf7ee;border:1px solid #a9d9b8;border-radius:8px;padding:10px;">
+      <div style="font-weight:700;color:#1e8449;">你的正确件（黄金基准）</div>
+      <div style="font-size:12px;color:#4a7a57;margin:2px 0 6px;">窗口结束日 10-11（当前最新）</div>
+      <div style="font-size:13px;">商品数：<b>3,003</b></div>
+      <div style="font-size:13px;">曝光人数：<b>1,676,665</b></div>
+      <div style="font-size:13px;">点击人数：<b>63,618</b></div>
+      <div style="font-size:13px;">下单人数：<b>12,136</b></div>
+    </div>
+  </div>
+  <div style="font-size:12px;color:#6b7280;margin-top:6px;">铁证：全门店接口在 09-11~10-10 正好 1537/43683/261，与错误件逐值一致；50 个单店每店最多约 500 商品，没有任何单店是 1537。</div>
+
+  <!-- 时间机制 -->
+  <div style="font-weight:700;margin:16px 0 8px;">二、为什么会少（平台规则）</div>
+  <div style="background:#fff;border-radius:8px;padding:10px 12px;border:1px solid #e5e7eb;">
+    <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;">
+      <span style="background:#e8f0fe;color:#1a56c4;border-radius:50%;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">早</span>
+      <span style="font-size:13px;">08:30 脚本采集，平台「昨日数据 14 点才更新」，昨日快照未就绪 → <b>平台不报错，悄悄把窗口整体前移一天</b>，命中只给稀疏明细的历史窗口。</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-start;">
+      <span style="background:#eaf7ee;color:#1e8449;border-radius:50%;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">午</span>
+      <span style="font-size:13px;">14:00 后数据就绪，此时「当前最新窗口」返回全量（你下午导出即是完整的 3003/167 万）。</span>
+    </div>
+  </div>
+
+  <!-- 修复 -->
+  <div style="font-weight:700;margin:16px 0 8px;">三、怎么修（不需要加范围参数）</div>
+  <div style="background:#fff;border-radius:8px;padding:10px 12px;border:1px solid #e5e7eb;font-size:13px;">
+    1. 这张表从早上 08:30 剥离，改到 <b>14:30 后单独采</b>。<br>
+    2. 采集后自动验收：窗口结束日必须是「昨天」、汇总曝光不得低于 10 万、较上次曝光腰斩即判残缺，<b>不达标不入库、延后重采</b>。
+  </div>
+
+  <!-- 五层机制 -->
+  <div style="font-weight:700;margin:16px 0 8px;">四、可核实机制（本次已搭好，防黑盒/防上下文丢失）</div>
+  <div style="display:flex;flex-direction:column;gap:8px;">
+    <div style="background:#fff;border-left:4px solid #3b6fd4;border-radius:6px;padding:8px 10px;font-size:13px;"><b>① 一表一契约</b>：下载路径 + 表的释义写死在一个 spec 文件，脚本照它跑，不靠口头、不靠记忆。</div>
+    <div style="background:#fff;border-left:4px solid #3b6fd4;border-radius:6px;padding:8px 10px;font-size:13px;"><b>② 黄金基准件</b>：你手工导出的正确件，含 sha / 行数 / 汇总指纹。</div>
+    <div style="background:#fff;border-left:4px solid #1e8449;border-radius:6px;padding:8px 10px;font-size:13px;"><b>③ 内容比对门</b>：每次采集后自动对照，已实测——正确件放行、错误件拦截（窗口/量级/环比三连拦）。</div>
+    <div style="background:#fff;border-left:4px solid #c45600;border-radius:6px;padding:8px 10px;font-size:13px;"><b>④ 录制回放</b>：明天你在场时，真实提交一次导出并与页面导出对比，确认导出接口窗口无偏移。</div>
+    <div style="background:#fff;border-left:4px solid #6b7280;border-radius:6px;padding:8px 10px;font-size:13px;"><b>⑤ 确认落盘</b>：确认人 / 时间 / 基准 sha 全部写入文件，多轮对话压缩也不丢。</div>
+  </div>
+
+  <div style="margin-top:14px;font-size:12px;color:#6b7280;">明天下午（14 点后）仅需你在场配合第 ④ 步：各导一次做对比。</div>
+</div>
+</html>
+```

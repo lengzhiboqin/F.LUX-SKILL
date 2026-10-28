@@ -70,7 +70,8 @@ def _window_of(reg_entry, t):
     return dates.window_dates(t, WINDOW_DAYS, offset), dates.shift_iso(t, -offset)
 
 
-def plan_daily(t, reg, ledger, *, scope=None, force=False, batch_seq=""):
+def plan_daily(t, reg, ledger, *, scope=None, force=False, batch_seq="",
+               exclude=None):
     """规划一次日常运行。
 
     先算**近七日缺口**（按台账逐任务比对，不以最大日期推断完整），
@@ -78,14 +79,21 @@ def plan_daily(t, reg, ledger, *, scope=None, force=False, batch_seq=""):
     `force=False` 时跳过；`force=True` 时强制重采（验收用的三轮真实采集）。
 
     `batch_seq`：同一天需要多次独立运行时给不同值，否则同一天同一模式是**同一批次身份**。
+    `exclude`：表名集合，这些表本次不规划（如商品流量在09:30未就绪，剥离到14:05）。
+    `collect_via=="standalone"` 的表由独立脚本采集，主流程一律不规划（见 table_registry）。
     """
     t = dates.normalize_iso(t)                     # 非法日期在此抛出
     sc = _scope(scope)
     ledger = ledger or {}
     sw = reg.get("snapshot_window", {"days": 30, "offset": 1})
+    excluded = set(exclude or ())
 
     window_tasks, target_tasks = [], []
     for e in reg["tables"]:
+        if e.get("collect_via") == "standalone":
+            continue                               # 独立脚本采集，主流程不规划
+        if e["table"] in excluded:
+            continue
         if e["type"] == "snapshot":
             ws, we = dates.snapshot_window(t, sw.get("days", 30), sw.get("offset", 1))
             snap = C.make_task(e["platform"], e["table"], we,
@@ -130,6 +138,8 @@ def plan_targeted(t, day_list, reg, *, scope=None, batch_seq=""):
 
     tasks, unsupported = [], []
     for e in reg["tables"]:
+        if e.get("collect_via") == "standalone":
+            continue                               # 独立脚本采集，定向回采也不规划
         if e["type"] == "snapshot":
             # 快照不支持任意历史回溯：默认只接受「窗口结束日 = T-1」的目标快照
             if dates.shift_iso(t, -1) in days_n:
@@ -378,6 +388,7 @@ def run_collection(plan, config, *, collector=None, hist=None, ledger=None):
     离线自测可注入假采集器，**不因此放宽任何验收**。
     """
     C.validate_plan(plan)
+    config["business_today"] = plan["business_today"]   # 供适配器判定平台预填日
     if collector is None:
         from adapters import collect_task as collector       # 延迟导入，避免拉起浏览器依赖
     results = []

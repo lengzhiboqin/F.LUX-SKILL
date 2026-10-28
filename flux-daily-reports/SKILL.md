@@ -1,6 +1,6 @@
 ---
 name: flux-daily-reports
-description: This skill should be used when the user asks to collect, download, refresh, clean, load, self-check, recover, or report the F.LUX daily operating data of 牵牛花 (Qianniu) and 闪购 (Shangou) merchant backends — 19 report tables on Windows and Linux hosts. It triggers on requests such as 采昨天 / 补某天 / 拉取今天的两平台报表 / 处理这个批次 / 把这个批次清洗入库 / 检查某段数据对不对 / 看某店某个指标 / 今天的数据跑完了吗 / 跑每日闪购数据. It plans a seven-day gap, collects both platforms, validates raw original files, cleans them by fixed rules, writes incrementally into one SQLite business database with a 365-day retention window, runs an independent self-check, and reports success or blockers honestly.
+description: This skill should be used when the user asks to collect, download, refresh, clean, load, self-check, recover, or report the F.LUX daily operating data of 牵牛花 (Qianniu) and 闪购 (Shangou) merchant backends — 23 report tables on Windows and Linux hosts. It triggers on requests such as 采昨天 / 补某天 / 拉取今天的两平台报表 / 处理这个批次 / 把这个批次清洗入库 / 检查某段数据对不对 / 看某店某个指标 / 今天的数据跑完了吗 / 跑每日闪购数据. It plans a seven-day gap, collects both platforms, validates raw original files, cleans them by fixed rules, writes incrementally into one SQLite business database with a 365-day retention window, runs an independent self-check, and reports success or blockers honestly.
 license: 内部交付物，随项目 spec v2 生效；未获授权不得外传。
 ---
 
@@ -9,10 +9,21 @@ license: 内部交付物，随项目 spec v2 生效；未获授权不得外传�
 一套**确定性的四阶段日常管线**：**查缺口 → 采集并验收原件 → 清洗入库 → 自检与汇报**。
 确定性工作交给 `scripts/`，判断与用户沟通交给本文件。
 
+> **版本 v0.3（2026-10-15）** —— 自动化运营数据补齐版，161 测试全绿。
+> v0.3 相对 v0.2 的实质变化：
+> 1. **卡点3 商品流量采集时机修复**：近30天滚动表在 08:30 采集时昨日窗口未就绪，
+>    平台静默回退到稀疏窗口；改为 **14:05 就绪门后采集**，并加内容级比对（曝光≥10万、
+>    环比断崖<50%、窗口结束日=T-1）。
+> 2. **卡点5 门店推广（新增2表）**：`f_门店推广日效果`（门店×日）、`f_门店推广今日实时`
+>    （门店×小时，只留当日）；广告账户品牌级、免 token。
+> 3. **路径B 门店商品（新增2表）**：`f_门店商品全量快照`（88列整表替换）、
+>    `f_门店商品缺勤明细`（已上线+库存0+月销>0 的真缺勤）。
+> 4. **事实表 19 → 23**；`.gitignore` 修复（`data/` 补 `_data/`，口径 JSON 纳入版本控制）。
+>
 > **版本 v0.2（2026-10-02）** —— 实机三轮验收通过后的交付版。
 > v0.2 相对 v0.1 的实质变化：
 > 1. **闪购支持定向日期回采**：新增日期控件设置与「日期校验双闸门」，可精确回采指定历史日
->    （gen2 两张流量表仍受限，见下）。
+>    （gen2 两张流量表在 v0.2.1 经「自定义日」打通，见下）。
 > 2. **19 张事实表全部入库**：`门店流量_分来源` / `门店流量排行` 按 2026-10-02 裁决恢复入库。
 > 3. **修复 5 项实机缺陷**：`ws.sheetnames`、`QIANNIU_ID_KEYS` 大小写、`optional_keys` 透传、
 >    事实表 `f_` 前缀、`_catalog` 漏登记。
@@ -33,7 +44,7 @@ license: 内部交付物，随项目 spec v2 生效；未获授权不得外传�
 | 用户说 | 做什么 | 命令 |
 |---|---|---|
 | 「看看还缺哪些」「今天要采什么」 | 只查七日缺口，不采集 | `check-gap` |
-| 「采昨天」「拉今天的两平台报表」 | 默认日期全量采集（19 表） | `collect` |
+| 「采昨天」「拉今天的两平台报表」 | 默认日期全量采集（23 表） | `collect` |
 | 「补 9 月 20 号」 | 定向日期重采，**新建批次** | `collect --date` |
 | 「只采评价数据」 | 限定单表采集 | `collect --table` |
 | 「把这个批次清洗好」 | 只清洗不写库 | `process`（**不带** `--db`） |
@@ -57,7 +68,7 @@ license: 内部交付物，随项目 spec v2 生效；未获授权不得外传�
 # 0) 一次准备：把 config.example.json 复制成 config.json，按宿主改路径
 # 1) 看缺口（可跳过，run 会自己做）
 python scripts/flux.py check-gap  --today 2026-10-01 --config config.json
-# 2) 采集（默认 19 表；台账里已完成的目标日任务会自动跳过）
+# 2) 采集（默认 23 表；台账里已完成的目标日任务会自动跳过；商品流量近30天自动等到14:05就绪）
 python scripts/flux.py collect    --today 2026-10-01 --config config.json
 # 3) 清洗入库（--manifest 用上一步输出里的 manifest 路径）
 python scripts/flux.py process    --manifest _data/_batches/<batch_id>/manifest.json \
@@ -83,10 +94,17 @@ python scripts/flux.py report     --manifest _data/_batches/<batch_id>/manifest.
 | 业务日 T | 运行开始时的 `Asia/Shanghai` 日期，跨午夜不变；非法日历日期直接报错 |
 | 普通日表 | 目标 **T-1**；最近窗口 **T-7 ~ T-1**（含两端 7 天） |
 | 闪购评价数据 | 目标 **T-2**；最近窗口 **T-8 ~ T-2**（含两端 7 天） |
-| 商品流量_近30天 | 快照，覆盖 **T-30 ~ T-1**，**以 T-1 为窗口结束日**，不裁切、不倒退 |
+| 商品流量_近30天 | 快照，覆盖 **T-30 ~ T-1**，**以 T-1 为窗口结束日**，不裁切、不倒退；**昨日窗口 14:00 后才就绪，脚本 14:05 采（就绪门）** |
+| 门店推广日效果 | 门店×日，近30天（截至昨日），按天累积 |
+| 门店推广今日实时 | 门店×小时，**只留当日、整表替换**，盘中实时监控 |
+| 门店商品全量快照 | 门店×SPU×SKU，88列，**每天整表替换** |
+| 门店商品缺勤明细 | 已上线+渠道库存0+月销量>0 的真缺勤，按天追加 |
 | 保留期 | 活动库保留业务日期 **T-365 ~ T-1**（含两端 365 个自然日），按**业务日期**判期 |
 
 历史快照只有平台**实际支持回溯**时才补采；不支持就明确列为限制，**不得从当前快照伪造**。
+
+> **商品流量"下单人数"口径（勿误用）**：它是**商品维度求和**（每个商品被多少人下单，对所有商品求和，
+> 一单含多品会在多个商品各计1），约为去重订单数的 3 倍；**不是订单数**。订单数用经营指标"有效订单数"。
 
 ## 五、失败与恢复（最多 3 次，不无限重试）
 
@@ -120,7 +138,7 @@ python scripts/flux.py report     --manifest _data/_batches/<batch_id>/manifest.
 
 | 字段 | 含义 |
 |---|---|
-| `tables[]` | 19 张表清单，含 `in_db`、`db_columns`（库内真实列名）、各类指标计数 |
+| `tables[]` | 23 张表清单，含 `in_db`、`db_columns`（库内真实列名）、各类指标计数 |
 | `columns[]` | 566 列的逐列口径：`table`/`column`/`unit`/`grain`/`meaning`/`window`/`caution`/`availability` |
 | `not_loaded_metrics[]` | 125 个**未入库**口径（库里没有这些列，别写进 SQL） |
 
@@ -181,6 +199,9 @@ node scripts/query.mjs get --db "_data/flux.db" \
 | 「哪些商品好卖」 | `f_商品数据` | `销量` `销售额`，按 `商品` 分组 |
 | 「评价怎么样」 | `f_评价数据` | `商家评分` `订单商品点踩率(%)` |
 | 「配送慢不慢」 | `f_配送指标明细` | `配送时长` 等时长列 |
+| 「推广花了多少、效果如何」 | `f_门店推广日效果`（趋势）/ `f_门店推广今日实时`（盘中） | `花费` `曝光` `点击` `订单` `成交金额` |
+| 「哪些店缺货/缺勤」 | `f_门店商品缺勤明细`（明细）/ `f_门店商品全量快照`（盘库） | `渠道库存` `月销量` `售卖状态` |
+| 「商品流量/转化」 | `f_商品流量_近30天`（注意下单人数是商品维度求和，非订单数） | `曝光量` `点击量` `下单人数` |
 | 「跟上周比」 | 同上任一张 | 同口径换日期区间，**不要跨平台** |
 
 ## 八、references 索引（按需加载，不要全读）
@@ -191,9 +212,9 @@ node scripts/query.mjs get --db "_data/flux.db" \
 | `references/collection.md` | 采集口径、原件验收规则、结构契约、台账 |
 | `references/processing.md` | 清洗规则、入库语义、自检与 365 日保留 |
 | `references/recovery.md` | 错误码→处置、重试上限、变化分级、汇报模板与查询 |
-| `references/metrics.json` | **AI 取数前必读**：19 表 578 列的取数说明书（口径、可用性、陷阱，与库实测零差异） |
+| `references/metrics.json` | **AI 取数前必读**：23 表 719 列的取数说明书（口径、可用性、陷阱，与库实测零差异） |
 | `references/schema.md` | 最终库字段字典与表关系 |
-| `references/table_registry.json` | 19 表清单、平台、类型、窗口、列数基线 |
+| `references/table_registry.json` | 23 表清单、平台、类型、窗口、列数基线 |
 | `references/cleaning_rules.json` | 逐表清洗与入库规则（版本化，唯一规则来源） |
 | `references/historical_headers.json` | 历史有序表头基线 |
 | `references/config.example.json` | 配置样例（无凭据、无本机绝对路径） |

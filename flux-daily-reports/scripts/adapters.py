@@ -19,6 +19,19 @@ from common import dates
 
 LOGIN_HINTS = ("login", "waimaie", "passport", "验证码", "安全验证")
 
+
+def _is_login_url(url):
+    """判断 URL 是否落在登录/验证页。
+
+    注意牵牛花登录成功后会跳 `home.html#/data/home/new?fromSource=loginPage`，
+    query 参数里残留 `loginPage` 字样，但实际已是业务首页；只按路径段（剥掉 ?
+    之后的 query 参数）匹配，避免误判为未登录。
+    """
+    if not url:
+        return False
+    path = url.split("?", 1)[0]
+    return any(h in path for h in LOGIN_HINTS)
+
 # 闪购 gen2 流量表：表单用「时间周期」控件且 `config_gen2()` 硬编码点「昨日」，
 # 无法按请求日期配置 —— 定向回采时必须单独拒绝（见 `_collect_shangou`）。
 SHANGOU_GEN2_TABLES = {"流量明细(新)", "流量渠道明细(新)"}
@@ -181,9 +194,20 @@ def _collect_qianniu(task, config):
                                  (config.get("cdp_host"), config.get("cdp_port")))
 
     col = qn.Collector()
+    # 商品流量近30天是滚动快照：run_one 的 day 必须是**提交日**（窗口结束日+1），
+    # 窗口才是 [T-30, T-1]；传 business_date(T-1) 会整体早一天（结束日变 T-2）。
+    is_goods_flow = (task["table"] == "商品流量_近30天")
+    if is_goods_flow and task.get("window_end"):
+        submit_day = dates.shift_iso(task["window_end"], 1)
+    else:
+        submit_day = task["business_date"]
     try:
-        rec = col.run_one(task["table"], dates.to_compact(task["business_date"]),
-                          verbose=False, channel=channel)
+        if is_goods_flow and config.get("wait_ready"):
+            rec = col.run_goods_flow_ready(dates.to_compact(submit_day),
+                                          wait_ready=True, verbose=False)
+        else:
+            rec = col.run_one(task["table"], dates.to_compact(submit_day),
+                              verbose=False, channel=channel)
     finally:
         try:
             col.close()
@@ -191,6 +215,8 @@ def _collect_qianniu(task, config):
             pass
 
     def path_for(table, d, ch):
+        # 兜底文件名以窗口结束日（task business_date = end_c）命名，与 run_one 输出对齐；
+        # 正常情况下 map_qianniu_rec 优先用 rec.file（实际路径），用不到这里。
         p = os.path.join(rdir, table)
         name = "%s_%s%s.xlsx" % (table, dates.to_compact(d), "_ch%s" % ch if ch else "")
         return os.path.join(p, name)
@@ -273,19 +299,29 @@ def _collect_shangou(task, config):
                                  (config.get("cdp_host"), config.get("cdp_port")))
 
     timeout_s = int(config.get("timeout_s", 180))
-    daily = not bool(task.get("business_date") and config.get("explicit_date"))
+    # daily 判定：任务日期=平台预填日（普通表 T-1，评价 T-2）才用平台预填；
+    # 历史缺口日必须定向回采，否则会被强制采成昨日、文件名覆盖（2026-10-16实测bug）。
+    from common import dates as _dd
+    T = config.get("business_today") or _dd.today_shanghai()
+    _off = -2 if task["table"] == "评价数据" else -1
+    preset_day = _dd.shift_iso(T, _off)
+    d = task["business_date"]
+    daily = (d == preset_day)
+    is_gen2 = task["table"] in SHANGOU_GEN2_TABLES
+    if not daily:
+        print("[shangou] 历史日回采 %s @ %s（设日期控件+日期校验双闸门）"
+              % (task["table"], _dd.to_compact(d)), flush=True)
     with sync_playwright() as pw:
         browser = sg.connect_browser(pw)
         page = sg.find_page(browser)
-        if any(h in (page.url or "") for h in LOGIN_HINTS):
+        if _is_login_url(page.url):
             return _result(task, C.S_BLOCKED,
                            error={"code": "LOGIN_REQUIRED",
                                   "detail": "闪购站点未登录：%s" % page.url})
-        d = task["business_date"]
         sg.set_target_date(d)          # 让 validate_file 按目标日期校验（兜底闸门）
         try:
-            # gen2 流量表定向回采：走 collect_one（roo「自定义日」，apply_date 读回确认）
-            if config.get("explicit_date") and task["table"] in SHANGOU_GEN2_TABLES:
+            # gen2 流量表历史日回采：走 collect_one（roo「自定义日」，apply_date 读回确认）
+            if (not daily) and is_gen2:
                 recent = sgc.make_download_sink(page, os.path.join(rdir, ".staging"))
                 res = sgc.collect_one(page, task["table"], d, rdir,
                                       timeout_s=timeout_s,
@@ -328,7 +364,7 @@ def precheck_login(config):
                and host in (pg.get("url") or "")]
         if not hit:
             out[p] = {"ok": False, "detail": "没找到 %s 标签页，请先打开并登录" % host}
-        elif any(any(h in (pg.get("url") or "") for h in LOGIN_HINTS) for pg in hit):
+        elif any(_is_login_url(pg.get("url")) for pg in hit):
             out[p] = {"ok": False, "detail": "%s 落在登录/验证页，请人工完成登录" % host}
         else:
             out[p] = {"ok": True, "detail": hit[0].get("url")}
