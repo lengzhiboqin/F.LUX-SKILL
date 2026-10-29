@@ -107,33 +107,16 @@ def check_flux_daily_briefing(skills_dir, date_str):
 
 
 def check_generic_skill(skills_dir, name, date_str):
-    """检查通用技能执行状态（优先读last_run.json，其次检查当日产出物）"""
+    """检查通用技能执行状态（检查是否有当日产出物或日志）"""
     skill_path = Path(skills_dir) / name
     date_compact = date_str.replace("-", "")
-
-    # 1. 优先读取统一格式的last_run.json
-    last_run_file = skill_path / "data" / "last_run.json"
-    if last_run_file.exists():
-        try:
-            with open(last_run_file, encoding="utf-8") as f:
-                lr = json.load(f)
-            ts = lr.get("timestamp", "")
-            if ts and ts[:10].replace("-", "") == date_compact:
-                if lr.get("ok"):
-                    return "success", None
-                else:
-                    return "failed", lr.get("error") or "last_run.json标记为失败"
-            elif ts:
-                return "unknown", f"last_run.json日期={ts[:10]}，非当日{date_str}"
-        except Exception as e:
-            pass
-
-    # 2. 兜底：检查技能目录下是否有当日修改的非源码文件
+    # 检查技能目录下是否有当日修改的文件（排除SKILL.md和脚本）
     try:
         for f in skill_path.rglob("*"):
             if f.is_file() and f.stat().st_size > 0:
                 mtime = datetime.fromtimestamp(f.stat().st_mtime)
                 if mtime.strftime("%Y%m%d") == date_compact:
+                    # 排除源码文件（.py/.md/.sh/.txt），只看产出物
                     if f.suffix not in (".py", ".md", ".sh", ".txt", ".json"):
                         return "success", None
     except Exception:
@@ -142,10 +125,13 @@ def check_generic_skill(skills_dir, name, date_str):
 
 
 def check_skill_status(name, skills_dir, date_str):
-    """检查单个技能执行状态，返回 (status, error_msg)
-    所有技能统一走check_generic_skill（优先读last_run.json）
-    """
-    return check_generic_skill(skills_dir, name, date_str)
+    """检查单个技能执行状态，返回 (status, error_msg)"""
+    if name == "shangou-data-pipeline":
+        return check_shangou_pipeline(skills_dir, date_str)
+    elif name == "flux-daily-briefing":
+        return check_flux_daily_briefing(skills_dir, date_str)
+    else:
+        return check_generic_skill(skills_dir, name, date_str)
 
 
 def create_github_issue(repo_dir, skill_name, title, body):
@@ -200,114 +186,23 @@ def run_github_sync(repo_dir):
         return False, []
 
 
-def check_ready_for_main(status, repo_dir=None):
-    """检查哪些技能可以合并到main
-
-    v2（修复漏洞）：不再依赖 status 里可能为空的 current_branch（它只在"本次同步有
-    代码变化"时才被写入），改为直接检查本地/远程是否存在对应 dev/<name> 分支。
-    只要连续>=3天无报错、未合并、且存在 dev 分支，即进入 ready 队列。
-    """
+def check_ready_for_main(status):
+    """检查哪些技能可以合并到main"""
     ready = []
     for name, s in status.items():
         days = s.get("consecutive_success_days", 0)
-        # 确保转为整数（可能是字符串）
-        try:
-            days = int(days)
-        except (ValueError, TypeError):
-            days = 0
+        branch = s.get("current_branch", "")
         promoted = s.get("promoted_to_main", "")
-        if days < 3 or promoted:
-            continue
-        # 修复：分支存在性用真实 git 判断（本地 ref 或远程 ref），不再看 status.current_branch
-        has_dev = False
-        if repo_dir:
-            for ref in (f"refs/heads/dev/{name}", f"refs/remotes/origin/dev/{name}"):
-                try:
-                    r = subprocess.run(
-                        ["git", "-C", repo_dir, "show-ref", "--quiet", ref],
-                        capture_output=True, text=True)
-                    if r.returncode == 0:
-                        has_dev = True
-                        break
-                except Exception:
-                    pass
-        if has_dev:
+        if days >= 3 and branch.startswith("dev/") and not promoted:
             ready.append(name)
-        else:
-            log(f"  ⚠️  {name} 连续{days}天无报错但未找到 dev/{name} 分支，跳过")
     return ready
 
 
-def auto_merge_to_main(repo_dir, name):
-    """把技能 dev 分支的最新内容自动合并到 main。
-
-    用「目录抽取法」：只 checkout dev/<name>/ 目录到 main 工作区并提交，而不是
-    整分支 merge——避免把 dev 分支线性历史里曾出现的大文件（如 flux.db）或其他
-    技能文件带进 main。合并成功后 push origin main。
-    """
-    import datetime as _dt
-    try:
-        # 1. 切到 main
-        r = subprocess.run(["git", "-C", repo_dir, "checkout", "main"],
-                           capture_output=True, text=True, timeout=120)
-        if r.returncode != 0:
-            log(f"    checkout main 失败: {r.stderr.strip()[:200]}")
-            return False
-
-        # 2. 抽取技能目录（若目录在 main 已存在则覆盖更新）
-        r = subprocess.run(["git", "-C", repo_dir, "checkout", f"dev/{name}", "--", f"{name}/"],
-                           capture_output=True, text=True, timeout=120)
-        if r.returncode != 0:
-            log(f"    checkout dev/{name} -- {name}/ 失败: {r.stderr.strip()[:200]}")
-            return False
-        subprocess.run(["git", "-C", repo_dir, "add", "-A"], capture_output=True, text=True, timeout=60)
-
-        # 3. 移除业务数据/生成产物（不入库）
-        r = subprocess.run(
-            ["git", "-C", repo_dir, "ls-files", "--cached"],
-            capture_output=True, text=True, timeout=60)
-        for f in r.stdout.splitlines():
-            if f.endswith(".db") or "/_data/" in f or f"{name}/output/" in f:
-                subprocess.run(["git", "-C", repo_dir, "rm", "--cached", f],
-                               capture_output=True, text=True, timeout=30)
-
-        # 4. 若无实际改动则不提交
-        r = subprocess.run(["git", "-C", repo_dir, "status", "--porcelain"],
-                           capture_output=True, text=True, timeout=30)
-        if not r.stdout.strip():
-            log(f"    {name} 目录在 main 与 dev 无差异，无需提交")
-            return True
-
-        # 5. 提交
-        days = ""
-        try:
-            import json as _json, os as _os
-            sf = _os.path.expanduser("~/.config/flux-skills/skill_status.json")
-            with open(sf, encoding="utf-8") as f:
-                days = str(_json.load(f).get(name, {}).get("consecutive_success_days", ""))
-        except Exception:
-            pass
-        msg = f"promote: {name} 自动合并到main（连续{days}天无报错验证通过）" if days else \
-              f"promote: {name} 自动合并到main"
-        subprocess.run(["git", "-C", repo_dir, "commit", "-m", msg],
-                       capture_output=True, text=True, timeout=60)
-
-        # 6. push
-        r = subprocess.run(["git", "-C", repo_dir, "push", "origin", "main"],
-                           capture_output=True, text=True, timeout=180)
-        if r.returncode != 0:
-            log(f"    push 失败: {r.stderr.strip()[:300]}")
-            return False
-        return True
-    except Exception as e:
-        log(f"    auto_merge_to_main 异常: {e}")
-        return False
-
-
 def send_wecom_notification(result, chat_id=None):
-    """发送企微通知（优化版格式，美观易读）"""
+    """发送企微通知（如果wecom-cli可用）"""
     try:
         if not Path("/usr/local/bin/wecom-cli").exists() and not Path("/usr/bin/wecom-cli").exists():
+            # 尝试which
             r = subprocess.run(["which", "wecom-cli"], capture_output=True, text=True)
             if r.returncode != 0:
                 log("  ⚠️  wecom-cli未安装，跳过通知")
@@ -315,71 +210,28 @@ def send_wecom_notification(result, chat_id=None):
     except Exception:
         pass
 
-    # 构建通知内容（企微markdown单换行会粘连，必须用空行分隔）
-    L = []
+    # 构建通知内容
+    lines = []
+    lines.append("**老大，技能质量门禁检测完成**")
+    lines.append("")
+    lines.append(f"📊 检测技能：{result['total_skills']}个（成功{result['success']}，失败{result['failed']}，未知{result['unknown']}）")
 
-    # 标题
-    L.append("**老大，技能质量门禁检测完成**")
-    L.append("")
-    L.append("")
-
-    # 📊 检测概览
-    L.append("📊 **检测概览**")
-    L.append("")
-    L.append(f"· 检测技能：{result['total_skills']}个")
-    L.append("")
-    L.append(f"· ✅ 成功：{result['success']}个")
-    L.append("")
-    L.append(f"· ❌ 失败：{result['failed']}个")
-    L.append("")
-    L.append(f"· ❓ 未知：{result['unknown']}个")
-    L.append("")
-    L.append("")
-
-    # 🆕 新技能
     if result["new_skills"]:
-        L.append("🆕 **新技能自动加入**")
-        L.append("")
-        for s in result["new_skills"]:
-            L.append(f"· {s}")
-            L.append("")
-        L.append("")
+        lines.append(f"🆕 新技能自动加入：{'、'.join(result['new_skills'])}")
 
-    # ✅ 可合并main（v3：自动合并）
-    if result.get("auto_merged"):
-        L.append("✅ **已自动合并到main（连续3天无报错）**")
-        L.append("")
-        for s in result["auto_merged"]:
-            L.append(f"· {s}")
-            L.append("")
-        L.append("")
-    elif result["ready_for_main"]:
-        L.append("✅ **可合并main（连续3天无报错）**")
-        L.append("")
-        for s in result["ready_for_main"]:
-            L.append(f"· {s}")
-            L.append("")
-        L.append("")
+    if result["ready_for_main"]:
+        lines.append(f"✅ 可合并main：{'、'.join(result['ready_for_main'])}（连续3天无报错）")
 
-    # ⚠️ 报错Issue
     if result["issues_created"]:
-        L.append("⚠️ **报错Issue（已创建）**")
-        L.append("")
-        for issue in result["issues_created"]:
-            L.append(f"· {issue.get('skill', '')}：{issue.get('url', '')}")
-            L.append("")
-        L.append("")
+        lines.append(f"⚠️ 报错Issue：{len(result['issues_created'])}个")
 
-    # 📋 各技能状态（分行显示，每个技能一行）
-    L.append("📋 **各技能状态**")
-    L.append("")
+    lines.append("")
+    lines.append("各技能状态：")
     for s in result["skills"]:
         icon = {"success": "✅", "failed": "❌", "unknown": "❓"}.get(s["status"], "❓")
-        status_text = {"success": "成功", "failed": "失败", "unknown": "未知"}.get(s["status"], "未知")
-        L.append(f"{icon} {s['name']}：{status_text}（连续{s['consecutive_days']}天无报错）")
-        L.append("")
+        lines.append(f"  {icon} {s['name']}：连续{s['consecutive_days']}天无报错")
 
-    text = "\n".join(L)
+    text = "\n".join(lines)
 
     try:
         chat = chat_id or "woeC4LQgAAk8Ci2f7Xrp32fZ6x5R4YHA"
@@ -413,12 +265,12 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="干跑模式")
     args = parser.parse_args()
 
-    # 计算日期：默认检测当天（T），因为采集/简报都是当天执行的
+    # 计算日期
     if args.date:
         date_str = args.date.replace("-", "")
     else:
-        today = datetime.now()
-        date_str = today.strftime("%Y%m%d")
+        yesterday = datetime.now() - timedelta(days=1)
+        date_str = yesterday.strftime("%Y%m%d")
     date_display = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
 
     # 自动检测仓库路径
@@ -486,13 +338,8 @@ def main():
         if not args.dry_run:
             s["last_run_date"] = date_display
             s["last_run_status"] = run_status
-            # 确保consecutive_success_days是int类型
-            try:
-                cur_days = int(s.get("consecutive_success_days", 0))
-            except (ValueError, TypeError):
-                cur_days = 0
             if run_status == "success":
-                s["consecutive_success_days"] = cur_days + 1
+                s["consecutive_success_days"] = s.get("consecutive_success_days", 0) + 1
                 s["last_error"] = None
                 success_count += 1
             elif run_status == "failed":
@@ -540,26 +387,11 @@ def main():
                     status[name]["promoted_to_main"] = ""
                     status[name]["consecutive_success_days"] = 0
 
-    # 7. 检查可合并main（v2：用真实 git 分支判断，修复 branch="" 漏判）
-    ready_for_main = check_ready_for_main(status, repo_dir)
+    # 7. 检查可合并main
+    ready_for_main = check_ready_for_main(status)
     if ready_for_main:
         log("")
         log(f"=== 可合并main: {', '.join(ready_for_main)} ===")
-
-    # 7b. 自动合并到main（v3：连续达标自动合并，不再只提醒）
-    auto_merged = []
-    if args.sync and repo_dir and not args.dry_run and ready_for_main:
-        log("")
-        log("=== 自动合并到main（连续达标自动执行）===")
-        for name in ready_for_main:
-            ok = auto_merge_to_main(repo_dir, name)
-            if ok:
-                auto_merged.append(name)
-                status[name]["promoted_to_main"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                status[name]["current_branch"] = "main"
-                log(f"  ✅ {name} 已自动合并到main")
-            else:
-                log(f"  ⚠️  {name} 自动合并失败（详见上方）")
 
     # 8. 保存状态
     if not args.dry_run:
@@ -577,7 +409,6 @@ def main():
         "new_skills": new_skills,
         "synced_to_dev": synced_to_dev,
         "ready_for_main": ready_for_main,
-        "auto_merged": auto_merged,
         "issues_created": issues_created,
         "skills": result_skills,
     }
@@ -587,23 +418,6 @@ def main():
         log("")
         log("=== 企微通知 ===")
         send_wecom_notification(result)
-
-    # 写统一格式的last_run.json（供自身检测运行状态）
-    try:
-        script_dir = Path(__file__).parent
-        last_run_file = script_dir.parent / "data" / "last_run.json"
-        last_run_file.parent.mkdir(parents=True, exist_ok=True)
-        last_run = {
-            "ok": True,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "data_date": date_display,
-            "exit_code": 0,
-            "error": None,
-            "outputs": [args.status_file],
-        }
-        last_run_file.write_text(json.dumps(last_run, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception as e:
-        log(f"⚠️ 写last_run.json失败: {e}")
 
     # 输出JSON结果
     print(json.dumps(result, ensure_ascii=False, indent=2))
