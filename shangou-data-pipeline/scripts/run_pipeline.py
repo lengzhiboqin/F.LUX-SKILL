@@ -16,7 +16,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -141,11 +141,6 @@ def main():
             latest_date = json.loads(chk.stdout).get("date", "")
     except Exception:
         pass
-    # 兜底：如果check_files没返回日期，使用昨日日期（每日采集任务采集的是昨日数据）
-    if not latest_date:
-        yesterday = datetime.now() - timedelta(days=1)
-        latest_date = yesterday.strftime("%Y-%m-%d")
-        info(f"check_files未返回日期，使用默认昨日日期: {latest_date}")
 
     # 6. 追加到总表
     print()
@@ -192,17 +187,12 @@ def main():
         if rnm:
             print(f"raw有但未入总表: {rnm}")
 
-    # 8. 清理原始数据（清理前确认追加成功）
+    # 8. 清理原始数据
     if cleanup_raw:
         print()
         info("=== 步骤6：清理临时原始数据 ===")
-        # 清理前检查：如果追加失败，不清理原始数据
-        if append_rc != 0:
-            err(f"追加过程有错误（退出码 {append_rc}），为防止数据丢失，跳过清理原始数据")
-            err("请检查追加日志，修复后手动清理: " + str(raw_dir))
-        else:
-            run([py, str(SCRIPT_DIR / "cleanup_raw.py"), "--raw", str(raw_dir),
-                 "--master", str(master_dir), "--keep-days", "0"])
+        run([py, str(SCRIPT_DIR / "cleanup_raw.py"), "--raw", str(raw_dir),
+             "--master", str(master_dir), "--keep-days", "0"])
 
     # 9. 导出Excel
     if export_excel:
@@ -243,23 +233,6 @@ def main():
                                     "collect_dates": dates}
     summary_file.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"摘要已写入: {summary_file}")
-
-    # 11.5 写统一格式的last_run.json（供validator检测运行状态）
-    try:
-        last_run_file = SCRIPT_DIR.parent / "data" / "last_run.json"
-        last_run_file.parent.mkdir(parents=True, exist_ok=True)
-        last_run = {
-            "ok": collect_rc == 0 and append_rc == 0,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "data_date": latest_date,
-            "exit_code": 0 if (collect_rc == 0 and append_rc == 0) else 1,
-            "error": None if (collect_rc == 0 and append_rc == 0) else f"collect_rc={collect_rc}, append_rc={append_rc}",
-            "outputs": [str(excel_path)] if export_excel and excel_path.exists() else [],
-        }
-        last_run_file.write_text(json.dumps(last_run, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"统一状态已写入: {last_run_file}")
-    except Exception as e:
-        print(f"⚠️ 写last_run.json失败: {e}")
 
     # 12. 总结
     print()
