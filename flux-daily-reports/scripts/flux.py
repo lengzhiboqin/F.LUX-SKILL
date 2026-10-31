@@ -99,7 +99,8 @@ def cmd_collect(args):
         plan = plan_targeted(t, [args.date], reg)
     else:
         plan = plan_daily(t, reg, ledger, force=bool(args.force),
-                          batch_seq=args.batch_seq or "")
+                          batch_seq=args.batch_seq or "",
+                          exclude=args.exclude or None)
     if args.table:
         keep = [x for x in plan["tasks"] if x["table"] == args.table]
         if not keep:
@@ -109,6 +110,7 @@ def cmd_collect(args):
         plan["gap_tasks"] = [x for x in plan["gap_tasks"] if x["table"] == args.table]
     cfg["batch_id"] = plan["batch_id"]
     cfg["explicit_date"] = bool(args.date)
+    cfg["wait_ready"] = bool(args.wait_ready)   # 商品流量就绪门（卡点3）
 
     from run_daily import load_historical
     hist = load_historical(cfg.get("hist_path"))
@@ -194,8 +196,9 @@ def cmd_run(args):
     cfg = load_config(args.config)
     t = dates.normalize_iso(args.today or dates.today_shanghai())
     ledger = load_ledger(cfg["ledger_path"])
-    plan = plan_daily(t, cfg["_registry"], ledger)
+    plan = plan_daily(t, cfg["_registry"], ledger, exclude=args.exclude or None)
     cfg["batch_id"] = plan["batch_id"]
+    cfg["wait_ready"] = bool(args.wait_ready)   # 商品流量就绪门（卡点3）
 
     manifest = run_collection(plan, cfg, hist=load_historical(cfg.get("hist_path")),
                               ledger=ledger)
@@ -227,6 +230,10 @@ def build_parser():
     p.add_argument("--date"); p.add_argument("--table")
     p.add_argument("--force", action="store_true")
     p.add_argument("--batch-seq", dest="batch_seq")
+    p.add_argument("--exclude", action="append", default=[],
+                   help="排除表名，可重复（如商品流量剥离到14:05）")
+    p.add_argument("--wait-ready", dest="wait_ready", action="store_true",
+                   help="商品流量近30天未就绪时，等到14:05就绪门后自动重采（卡点3）")
     p.set_defaults(func=cmd_collect)
 
     p = sub.add_parser("process")
@@ -262,6 +269,10 @@ def build_parser():
     p.add_argument("--today"); p.add_argument("--config")
     p.add_argument("--rules", required=True); p.add_argument("--master", required=True)
     p.add_argument("--db", required=True)
+    p.add_argument("--exclude", action="append", default=[],
+                   help="排除表名，可重复（如商品流量剥离到14:05）")
+    p.add_argument("--wait-ready", dest="wait_ready", action="store_true",
+                   help="商品流量近30天未就绪时，等到14:05就绪门后自动重采（卡点3）")
     p.set_defaults(func=cmd_run)
     return ap
 

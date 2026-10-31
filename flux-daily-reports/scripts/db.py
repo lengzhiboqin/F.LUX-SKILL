@@ -93,6 +93,9 @@ def validate_group(g):
     - 但**全部键列都空**的行一律报错（那是真丢键，不是合法空值）
     """
     issues = []
+    # no_data 空组（平台确认无事件）：无列、无行，只负责清掉旧组，跳过键列/行级校验
+    if g["status"] == C.S_NO_DATA:
+        return issues
     cols = g["columns"]
     for k in g["business_key"]:
         if k not in cols:

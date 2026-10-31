@@ -1,0 +1,42 @@
+```html type="renderer"
+<html style="margin:0;padding:0;">
+<title>缺失数据补齐路径矩阵</title>
+<div style="width:100%;box-sizing:border-box;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:#f5f6f8;color:#1f2329;padding:14px 12px;font-size:14px;line-height:1.5;">
+  <div style="font-size:18px;font-weight:700;margin-bottom:6px;">缺失数据 · 补齐路径</div>
+  <div style="background:#e8f0fe;color:#1a56c4;border-radius:6px;padding:8px 10px;font-size:13px;margin-bottom:14px;">
+    真正「平台有却没采」的只有 <b>卡点2 商品级缺勤</b>；卡点3 是采集太早；卡点1/4/6 是平台没算出（0）；卡点5 平台压根没有。
+  </div>
+
+  <!-- 交通灯矩阵 -->
+  <div style="font-weight:700;margin-bottom:8px;">一、7 卡点现状（10-11）</div>
+  <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;">
+    <div style="background:#fff;border-radius:6px;padding:8px 10px;border-left:4px solid #c45600;"><b>1 top80缺勤</b>：45/50 店 = 0　→ 查平台功能是否开通</div>
+    <div style="background:#fff;border-radius:6px;padding:8px 10px;border-left:4px solid #d93026;"><b>2 商品级缺勤明细</b>：无　→ <b>唯一需新建采集（门店商品页）</b></div>
+    <div style="background:#fff;border-radius:6px;padding:8px 10px;border-left:4px solid #1e8449;"><b>3 商品流量</b>：采太早窗口被前移　→ 改到 14:30 后采</div>
+    <div style="background:#fff;border-radius:6px;padding:8px 10px;border-left:4px solid #c45600;"><b>4 骑手取货时长</b>：13/29 店 = 0　→ 查配送方式口径</div>
+    <div style="background:#fff;border-radius:6px;padding:8px 10px;border-left:4px solid #6b7280;"><b>5 推广投放</b>：平台无　→ 先确认有没有做投放</div>
+    <div style="background:#fff;border-radius:6px;padding:8px 10px;border-left:4px solid #c45600;"><b>6 A级有货率</b>：23/50 店 = 0　→ 同卡点1</div>
+    <div style="background:#fff;border-radius:6px;padding:8px 10px;border-left:4px solid #1e8449;"><b>7 评价</b>：已恢复，每天 5~19 条　→ 保持</div>
+  </div>
+
+  <!-- 四类路径 -->
+  <div style="font-weight:700;margin:16px 0 8px;">二、怎么补（按成本排序）</div>
+  <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+    <div style="background:#eaf7ee;border-radius:8px;padding:9px 11px;"><b>① 改采集时机（卡点3、7）</b><br>近30天/评价挪到 14:30 后，明天即可见效。</div>
+    <div style="background:#fdecec;border-radius:8px;padding:9px 11px;"><b>② 新建采集能力（卡点2）</b><br>牵牛花「商品→门店商品」：105340 条，带渠道状态+库存，可导出，产出商品级缺勤明细。</div>
+    <div style="background:#fff6e5;border-radius:8px;padding:9px 11px;"><b>③ 查功能开通（卡点1、6、4）</b><br>平台连续多天显式 0，重采补不出，需开通/配置或确认配送口径。</div>
+    <div style="background:#f0f0f2;border-radius:8px;padding:9px 11px;"><b>④ 先问业务（卡点5）</b><br>牵牛花无广告模块；没做投放就撤需求，做了再找入口。</div>
+  </div>
+
+  <!-- 历史 -->
+  <div style="font-size:12px;color:#6b7280;margin-top:12px;">历史缺口：平台历史窗口稀疏、历史 0 无法回溯，只能从修复日起向前正确累积，不伪造历史。</div>
+
+  <!-- 待拍板 -->
+  <div style="font-weight:700;margin:16px 0 8px;">三、需老大拍板（2 个）</div>
+  <div style="background:#fff;border:1px dashed #b9c2cf;border-radius:8px;padding:10px;font-size:13px;">
+    1. 现在有没有在美团做付费广告/推广？<br>
+    2. top80、A级「智能商品诊断」门店要不要在平台开通？
+  </div>
+</div>
+</html>
+```

@@ -17,11 +17,16 @@ def reg():
     return REG.load_registry(REG_PATH)
 
 
+def planned_tables(r):
+    """主流程实际规划的表（排除 collect_via=standalone，它们由独立脚本采集）。"""
+    return [e for e in r["tables"] if e.get("collect_via") != "standalone"]
+
+
 def target_keys(t, r):
-    """19 张表的「目标日任务」键（普通表 T-1、评价 T-2、快照为快照窗口）。"""
+    """全部表的「目标日任务」键（普通表 T-1、评价 T-2、快照为快照窗口）。"""
     keys = set()
     sw = r.get("snapshot_window", {"days": 30, "offset": 1})
-    for e in r["tables"]:
+    for e in planned_tables(r):
         if e["type"] == "snapshot":
             ws, we = dates.snapshot_window(t, sw["days"], sw["offset"])
             keys.add(C.task_key(C.make_task(e["platform"], e["table"], we,
@@ -76,12 +81,13 @@ class TestWindows(unittest.TestCase):
 
 
 class TestRegistry(unittest.TestCase):
-    def test_registry_is_19_tables_two_platforms(self):
+    def test_registry_tables_two_platforms(self):
         r = reg()
-        REG.check_complete(r)
-        self.assertEqual(len(r["tables"]), 19)
-        self.assertEqual(len(REG.tables_of(r, "牵牛花")), 11)
-        self.assertEqual(len(REG.tables_of(r, "闪购")), 8)
+        REG.check_complete(r, expected_total=23)
+        # v0.3 基线：23 表（牵牛花 13 / 闪购 10），新增推广2表、门店商品2表
+        self.assertEqual(len(r["tables"]), 23)
+        self.assertEqual(len(REG.tables_of(r, "牵牛花")), 13)
+        self.assertEqual(len(REG.tables_of(r, "闪购")), 10)
 
     def test_snapshot_and_event_types(self):
         r = reg()
@@ -125,9 +131,9 @@ class TestPlanning(unittest.TestCase):
         plan = plan_daily(T, r, {}, scope={})
         C.validate_plan(plan)
         keys = {t["task_key"] for t in plan["tasks"]}
-        # 19 张表的目标日任务全部在计划里（含 T-2 的评价表与快照表的窗口任务）
+        # 全部表的目标日任务全部在计划里（含 T-2 的评价表与快照表的窗口任务）
         self.assertTrue(target_keys(T, r) <= keys)
-        self.assertEqual(len(target_keys(T, r)), 19)
+        self.assertEqual(len(target_keys(T, r)), len(planned_tables(r)))
         # 快照是一个任务，不是 30 个
         self.assertEqual(len({t["task_key"] for t in plan["tasks"]
                               if t["table"] == "商品流量_近30天"}), 1)
@@ -136,8 +142,9 @@ class TestPlanning(unittest.TestCase):
         r = reg()
         led = ledger_complete_all_but(T, r, keep_missing=target_keys(T, r))
         plan = plan_daily(T, r, led)
-        self.assertEqual(len(plan["gap_tasks"]), 19)   # 目标日尚未采 → 19 个缺口
-        self.assertEqual(len(plan["tasks"]), 19)       # 补漏与目标日重叠 → 不重复
+        n = len(planned_tables(r))
+        self.assertEqual(len(plan["gap_tasks"]), n)   # 目标日尚未采 → 全部缺口
+        self.assertEqual(len(plan["tasks"]), n)       # 补漏与目标日重叠 → 不重复
 
     def test_gap_detects_middle_missing_day(self):
         r = reg()
@@ -169,7 +176,7 @@ class TestPlanning(unittest.TestCase):
         led = ledger_complete_all_but(T, r)
         self.assertEqual(len(plan_daily(T, r, led)["tasks"]), 0)
         forced = plan_daily(T, r, led, force=True)
-        self.assertEqual(len(forced["tasks"]), 19)
+        self.assertEqual(len(forced["tasks"]), len(planned_tables(r)))
 
     def test_resume_keeps_original_business_today_and_batch(self):
         r = reg()
@@ -191,13 +198,19 @@ class TestPlanning(unittest.TestCase):
             plan_targeted(T, ["2026-10-02"], reg(), scope={})
 
     def test_targeted_marks_snapshot_backfill_unsupported(self):
-        plan = plan_targeted(T, ["2026-09-20"], reg(), scope={})
-        self.assertEqual(len(plan["unsupported_snapshots"]), 1)
-        self.assertTrue(all(t["table"] != "商品流量_近30天" for t in plan["tasks"]))
+        r = reg()
+        plan = plan_targeted(T, ["2026-09-20"], r, scope={})
+        snap_n = len([t for t in planned_tables(r) if t["type"] == "snapshot"])
+        self.assertEqual(len(plan["unsupported_snapshots"]), snap_n)
+        snap_names = {t["table"] for t in planned_tables(r) if t["type"] == "snapshot"}
+        self.assertTrue(all(t["table"] not in snap_names for t in plan["tasks"]))
 
     def test_targeted_covers_both_platforms(self):
-        plan = plan_targeted(T, ["2026-09-20"], reg(), scope={})
-        self.assertEqual(len(plan["tasks"]), 18)        # 19 - 快照
+        r = reg()
+        plan = plan_targeted(T, ["2026-09-20"], r, scope={})
+        snap_n = len([t for t in planned_tables(r) if t["type"] == "snapshot"])
+        # 非快照表可回采：规划表 - 快照数（standalone表本就不在规划内）
+        self.assertEqual(len(plan["tasks"]), len(planned_tables(r)) - snap_n)
         self.assertEqual({t["platform"] for t in plan["tasks"]}, {"牵牛花", "闪购"})
 
 

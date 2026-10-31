@@ -925,11 +925,12 @@ def download_one(page, report, start, end, out_dir, timeout_s, daily=False):
         # 直接下载：点「我知道了」后浏览器直接下载
         tmp = direct_download(page, fr, timeout_s=timeout_s)
     else:
-        # 异步任务：关闭弹窗 → 下载列表轮询（定向回采传 day，避免匹配旧历史行）
+        # 异步任务：关闭弹窗 → 下载列表轮询。无论daily/定向都传目标日精确匹配，
+        # 否则测试残留/旧任务（如09-29）会被误抓（10-16实测bug）。
         dismiss_modals(fr)
         goto_download_list(fr)
         tmp = poll_and_download(page, fr, report, timeout_s=timeout_s,
-                                day=start if not daily else None)
+                                day=start)
     base = f"{report}_{start}"
     final = sniff_and_save(tmp, out_dir, base)
     vs, ve = _resolve_range(start, end)          # 日期校验区间（兜底闸门）

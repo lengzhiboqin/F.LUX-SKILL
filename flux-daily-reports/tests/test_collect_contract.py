@@ -313,8 +313,8 @@ class TestLoginAndAntiBotMapping(Base):
         self.assertTrue(res["files"])
         self.assertIn("2026-09-29", res["files"][0]["path"])
 
-    def test_targeted_shangou_gen2_date_is_refused_not_faked(self):
-        """gen2 流量表无法按指定日期采集 → 明确 UNSUPPORTED_DOWNLOAD，不冒用昨日数据。"""
+    def test_targeted_shangou_gen2_date_is_honored_not_faked(self):
+        """v0.2.1：gen2 流量表定向回采走「自定义日」精确命中请求日，不冒用昨日。"""
         import adapters
         cfg = dict(self.cfg)
         cfg["explicit_date"] = True
@@ -322,10 +322,13 @@ class TestLoginAndAntiBotMapping(Base):
         res = adapters.collect_task(
             C.make_task("闪购", "流量明细(新)", "2026-09-29", scope={"scope_id": "all"}),
             cfg)
-        self.assertEqual(res["status"], C.S_BLOCKED)
-        self.assertEqual(res["error"]["code"], "UNSUPPORTED_DOWNLOAD")
-        self.assertEqual(res["files"], [])
-        self.assertIn("2026-09-29", res["error"]["action"])
+        if res["status"] == C.S_BLOCKED and res["error"]["code"] in (
+                "BROWSER_UNAVAILABLE", "LOGIN_REQUIRED"):
+            self.skipTest("无可用已登录浏览器：%s" % res["error"]["code"])
+        # gen2 已打通自定义日回采，不再拒绝；必须落在请求日而非平台「昨日」
+        self.assertIn(res["status"], (C.S_DOWNLOADED, C.S_VALIDATED))
+        self.assertTrue(res["files"])
+        self.assertIn("2026-09-29", res["files"][0]["path"])
 
 
 if __name__ == "__main__":
