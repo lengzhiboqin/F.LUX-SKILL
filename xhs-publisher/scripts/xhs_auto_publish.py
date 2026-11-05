@@ -295,52 +295,6 @@ def close_topic_dropdown(page):
         pass
 
 
-def check_ai_disclosure(page):
-    """勾选"笔记含AI合成内容"声明（2026新规，不标注会被限流）"""
-    print("🤖 勾选AI内容声明...")
-    try:
-        # 滚动到内容设置区域
-        page.evaluate("window.scrollBy(0, 600)")
-        time.sleep(1)
-        
-        # 点击"添加内容类型声明"
-        result = page.evaluate("""
-            () => {
-                const elements = document.querySelectorAll('*');
-                for (const el of elements) {
-                    if (el.textContent.includes('添加内容类型声明') && el.offsetParent !== null && el.children.length < 5) {
-                        el.click();
-                        return true;
-                    }
-                }
-                return false;
-            }
-        """)
-        time.sleep(1)
-        
-        # 点击"笔记含AI合成内容"
-        result2 = page.evaluate("""
-            () => {
-                const elements = document.querySelectorAll('*');
-                for (const el of elements) {
-                    if (el.textContent.includes('笔记含AI合成内容') && el.offsetParent !== null && el.children.length < 5) {
-                        el.click();
-                        return true;
-                    }
-                }
-                return false;
-            }
-        """)
-        time.sleep(1)
-        
-        if result2:
-            print("  ✅ AI内容声明已勾选")
-        else:
-            print("  ⚠️ 未找到AI内容声明选项，跳过")
-    except Exception as e:
-        print("  ⚠️ 勾选AI声明失败：%s" % str(e)[:100])
-
-
 def click_publish_button(page):
     """
     点击底部红色发布按钮（核心方法：Tab定位到第二个xhs-publish-btn后按Enter）
@@ -463,7 +417,7 @@ def check_note_published(page, title_keyword, timeout=20):
 # 主流程
 # ============================================================
 
-def full_publish(cover_path, title, body_text, config=None, no_publish=False):
+def full_publish(cover_path, title, body_text, config=None):
     """
     完整自动发布流程
 
@@ -472,10 +426,9 @@ def full_publish(cover_path, title, body_text, config=None, no_publish=False):
         title: 笔记标题
         body_text: 正文（含标签，标签放最后）
         config: 配置字典，可包含 cdp_url（连接已登录浏览器）
-        no_publish: True则只编辑内容不点击发布，等待用户手动点击
 
     Returns:
-        bool: 是否成功
+        bool: 是否发布成功
     """
     if config is None:
         config = load_config()
@@ -539,17 +492,9 @@ def full_publish(cover_path, title, body_text, config=None, no_publish=False):
             fill_title(page, title)
             fill_body(page, body_text)
             close_topic_dropdown(page)
-            check_ai_disclosure(page)
+            click_publish_button(page)
 
-            if no_publish:
-                print("✏️  内容已全部填写完成，不点击发布按钮，等待用户手动发布...")
-                # 模拟人类行为：停留几秒
-                time.sleep(3)
-                return True
-            else:
-                click_publish_button(page)
-                success = verify_publish_success(page)
-                return success
+            success = verify_publish_success(page)
 
             if not headless and not cdp_url:
                 print("⏳ 停留5秒供观察...")
@@ -582,7 +527,6 @@ def main():
     parser.add_argument("--headless", action="store_true", help="无头模式（不显示浏览器窗口）")
     parser.add_argument("--cdp", help="连接已登录浏览器的CDP地址，如 http://127.0.0.1:9222", default=None)
     parser.add_argument("--timeout", type=int, default=30000, help="超时时间（毫秒）")
-    parser.add_argument("--no-publish", action="store_true", help="只编辑内容不点击发布按钮，等待用户手动发布")
 
     args = parser.parse_args()
 
@@ -621,7 +565,7 @@ def main():
     if not body_text:
         parser.error("需要 --body 或 --body-file 参数")
 
-    success = full_publish(args.cover, args.title, body_text, config, no_publish=args.no_publish)
+    success = full_publish(args.cover, args.title, body_text, config)
     sys.exit(0 if success else 1)
 
 
